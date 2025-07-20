@@ -12,6 +12,7 @@ import '../quantity_training/quantity_training_page.dart';
 import '../shapes_training/shapes_training_page.dart';
 import '/screens/home/home_screen.dart';
 import 'widgets/training_card.dart';
+import '../../services/patient_auth_service.dart';
 
 class MenuTrainingsPage extends StatefulWidget {
   const MenuTrainingsPage({super.key});
@@ -22,8 +23,9 @@ class MenuTrainingsPage extends StatefulWidget {
 
 class _MenuTrainingsPageState extends State<MenuTrainingsPage> {
   int _totalStars = 0;
-  Learner? _currentLearner;
+  Learner? _currentLearner;  // Para ambos os sistemas
   bool _isLoading = true;
+  bool _isAuthenticatedPatient = false;
   
   // Chaves globais para cada botão de treinamento
   final GlobalKey _sequenceKey = GlobalKey();
@@ -37,28 +39,60 @@ class _MenuTrainingsPageState extends State<MenuTrainingsPage> {
   }
   
   Future<void> _loadProgressAndLearner() async {
+  setState(() {
+    _isLoading = true;
+  });
+  
+  try {
+    // Verificar se é um paciente autenticado
+    final isPatientLoggedIn = await PatientAuthService.isPatientLoggedIn();
+    
+    if (isPatientLoggedIn) {
+      // Carregar dados do paciente autenticado
+      final patient = await PatientAuthService.getPatientData();
+      
+      if (patient != null) {
+        // Migrar dados antigos se necessário
+        await ProgressService.migrateOldDataToNewSystem();
+        
+        // Carregar dados do progresso específico do paciente
+        final progress = await ProgressService.getOverallProgress();
+        
+        setState(() {
+          _currentLearner = patient;
+          _isAuthenticatedPatient = true;
+          _totalStars = progress['totalStars'] as int;
+          _isLoading = false;
+        });
+        return;
+      }
+    }
+    
+    // Fallback para sistema antigo (learners locais)
+    final currentLearner = await LearnerService.getCurrentLearner();
+    final progress = await ProgressService.getOverallProgress();
+    
     setState(() {
-      _isLoading = true;
+      _currentLearner = currentLearner;
+      _isAuthenticatedPatient = false;
+      _totalStars = progress['totalStars'] as int;
+      _isLoading = false;
+    });
+  } catch (e) {
+    setState(() {
+      _isLoading = false;
     });
     
-    try {
-      // Carregar dados do progresso
-      final progress = await ProgressService.getOverallProgress();
-      
-      // Carregar dados do aprendiz atual
-      final currentLearner = await LearnerService.getCurrentLearner();
-      
-      setState(() {
-        _totalStars = progress['totalStars'] as int;
-        _currentLearner = currentLearner;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao carregar dados: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
+}
   
   // Função para mostrar mensagem personalizada acima de um botão
   void _showComingSoonMessage(GlobalKey buttonKey, String trainingName) {

@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../constants/colors.dart';
-import '../../services/learner_service.dart';
 import '../common_widgets/gradient_background.dart';
-import '../welcome/welcome_screen.dart';
 import '../auth/therapist_login_screen.dart';
-import 'patient_selection_screen.dart';
+import '../auth/patient_login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -98,10 +96,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       SizedBox(height: 16),
                       Text(
-                        "Você é?",
+                        "Entre com sua conta Google",
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        "Escolha seu perfil:",
+                        style: TextStyle(
+                          fontSize: 18,
                           color: Colors.white,
                         ),
                       ),
@@ -111,39 +117,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 
                 const SizedBox(height: 40),
                 
-                // Botões de seleção
+                // Botões de seleção (APENAS GMAIL)
                 Column(
                   children: [
                     // Botão Paciente
                     _buildUserTypeButton(
                       context: context,
                       title: "Paciente",
-                      subtitle: "Vou praticar e aprender",
+                      subtitle: "Fazer treinos e aprender",
                       icon: Icons.person,
                       color: Colors.blue,
-                      onTap: () async {
-                        // Verificar se há pacientes cadastrados
-                        final hasLearners = await LearnerService.hasLearners();
-                        
-                        if (!mounted) return;
-                        
-                        if (hasLearners) {
-                          // Se há pacientes, mostrar seleção
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const PatientSelectionScreen(),
-                            ),
-                          );
-                        } else {
-                          // Se não há pacientes, ir direto para cadastro
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const WelcomeScreen(),
-                            ),
-                          );
-                        }
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PatientLoginScreen(),
+                          ),
+                        );
                       },
                     ),
                     
@@ -153,7 +143,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     _buildUserTypeButton(
                       context: context,
                       title: "Terapeuta",
-                      subtitle: "Vou acompanhar o progresso",
+                      subtitle: "Acompanhar progresso dos pacientes",
                       icon: Icons.medical_services,
                       color: Colors.green,
                       onTap: () {
@@ -170,15 +160,36 @@ class _HomeScreenState extends State<HomeScreen> {
                 
                 const SizedBox(height: 40),
                 
-                // Texto informativo
-                Center(
-                  child: Text(
-                    "Escolha sua opção para começar",
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.white.withAlpha(180),
-                      fontStyle: FontStyle.italic,
+                // Informação sobre o Google
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(51),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withAlpha(128),
+                      width: 1,
                     ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.security,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          "Login seguro com Google\nSeus dados ficam protegidos e isolados",
+                          style: TextStyle(
+                            color: Colors.white.withAlpha(180),
+                            fontSize: 14,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -247,6 +258,47 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  // Badge do Google
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: color.withAlpha(25),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 16,
+                          height: 16,
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'G',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Google',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: color,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
