@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../constants/colors.dart';
 import '../../models/learner.dart';
 import '../../services/learner_service.dart';
 import '../../services/progress_service.dart';
 import '../../services/pdf_report_service.dart';
+import '../../services/auth_service.dart';
 import '../../utils/pdf_helper.dart';
 import '../common_widgets/gradient_background.dart';
 import '../learner/add_learner_dialog.dart';
@@ -22,11 +22,16 @@ class _TherapistScreenState extends State<TherapistScreen> {
   bool _isLoading = true;
   final DateFormat dateFormat = DateFormat('dd/MM/yyyy');
   final DateFormat timeFormat = DateFormat('HH:mm');
-  final TextEditingController _therapistNameController = TextEditingController(text: 'Dr(a). Nome do Terapeuta');
+  final TextEditingController _therapistNameController = TextEditingController();
+  
+  // Dados do terapeuta logado
+  Map<String, dynamic>? _therapistData;
+  String _therapistName = 'Dr(a). Nome do Terapeuta';
 
   @override
   void initState() {
     super.initState();
+    _loadTherapistData();
     _loadLearners();
   }
 
@@ -34,6 +39,40 @@ class _TherapistScreenState extends State<TherapistScreen> {
   void dispose() {
     _therapistNameController.dispose();
     super.dispose();
+  }
+
+  // Carregar dados do terapeuta logado
+  Future<void> _loadTherapistData() async {
+    try {
+      final therapistData = await AuthService.getTherapistData();
+      final isLoggedIn = await AuthService.isTherapistLoggedIn();
+      
+      if (!isLoggedIn || therapistData == null) {
+        // Se não estiver logado, voltar para a tela inicial
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+            (route) => false,
+          );
+        }
+        return;
+      }
+      
+      setState(() {
+        _therapistData = therapistData;
+        _therapistName = therapistData['name'] ?? 'Terapeuta';
+        _therapistNameController.text = _therapistName;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Erro ao carregar dados do terapeuta'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _loadLearners() async {
@@ -447,19 +486,98 @@ class _TherapistScreenState extends State<TherapistScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Sair do Painel'),
-        content: const Text('Deseja sair do painel do terapeuta e voltar à tela inicial?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_therapistData != null) ...[
+              // Mostrar informações do terapeuta
+              Row(
+                children: [
+                  CircleAvatar(
+                    backgroundImage: _therapistData!['photoUrl'] != null && _therapistData!['photoUrl'].isNotEmpty
+                        ? NetworkImage(_therapistData!['photoUrl'])
+                        : null,
+                    backgroundColor: Colors.green,
+                    child: _therapistData!['photoUrl'] == null || _therapistData!['photoUrl'].isEmpty
+                        ? Text(
+                            _therapistData!['name']?.substring(0, 1).toUpperCase() ?? 'T',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _therapistData!['name'] ?? 'Terapeuta',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          _therapistData!['email'] ?? '',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
+            const Text('Deseja sair do painel do terapeuta?'),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('CANCELAR'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(context).pop();
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const HomeScreen()),
-                (route) => false,
+              
+              // Mostrar indicador de carregamento
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => const AlertDialog(
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Saindo...'),
+                    ],
+                  ),
+                ),
               );
+              
+              try {
+                // Fazer logout
+                await AuthService.signOut();
+                
+                if (mounted) {
+                  Navigator.of(context).pop(); // Fechar dialog de carregamento
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => const HomeScreen()),
+                    (route) => false,
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.of(context).pop(); // Fechar dialog de carregamento
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Erro ao fazer logout: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
@@ -616,8 +734,25 @@ class _TherapistScreenState extends State<TherapistScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Painel do Terapeuta'),
-        centerTitle: true,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Painel do Terapeuta',
+              style: TextStyle(fontSize: 18),
+            ),
+            if (_therapistData != null)
+              Text(
+                _therapistData!['name'] ?? 'Terapeuta',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.normal,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+          ],
+        ),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         leading: IconButton(
@@ -626,6 +761,29 @@ class _TherapistScreenState extends State<TherapistScreen> {
           tooltip: 'Sair do painel',
         ),
         actions: [
+          // Avatar do terapeuta
+          if (_therapistData != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: CircleAvatar(
+                radius: 16,
+                backgroundImage: _therapistData!['photoUrl'] != null && _therapistData!['photoUrl'].isNotEmpty
+                    ? NetworkImage(_therapistData!['photoUrl'])
+                    : null,
+                backgroundColor: Colors.white,
+                child: _therapistData!['photoUrl'] == null || _therapistData!['photoUrl'].isEmpty
+                    ? Text(
+                        _therapistData!['name']?.substring(0, 1).toUpperCase() ?? 'T',
+                        style: const TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      )
+                    : null,
+              ),
+            ),
+          
           // Botão para gerenciar PDFs
           IconButton(
             icon: const Icon(Icons.folder),

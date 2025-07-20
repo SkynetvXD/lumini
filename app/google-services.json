@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "705064727278",
+    "project_id": "lumimi-app",
+    "storage_bucket": "lumimi-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:705064727278:android:331239c9ac1356df3939ff",
+        "android_client_info": {
+          "package_name": "com.cogluna.lumimi"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "705064727278-bh3vgr860v0df4106up24lpt5oq7s7gl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cogluna.lumimi",
+            "certificate_hash": "5c771c1aaf0c0567bd366262461d7947d7838ded"
+          }
+        },
+        {
+          "client_id": "705064727278-hmib6nvn0m1b42o5q0ngu402smpngpkf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3hHpkJBRzvkpaHmPNNc-PSqDwlUK0nTo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "705064727278-hmib6nvn0m1b42o5q0ngu402smpngpkf.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

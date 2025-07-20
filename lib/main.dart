@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'services/learner_service.dart';
 import 'app.dart';
 import 'screens/home/home_screen.dart';
@@ -6,6 +7,14 @@ import 'screens/home/home_screen.dart';
 void main() async {
   // Garante que os widgets Flutter estejam inicializados
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Inicializar Firebase
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    print('Erro ao inicializar Firebase: $e');
+    // Continuar mesmo se houver erro na inicialização do Firebase
+  }
   
   // Verifica se já há aprendizes cadastrados
   final hasLearners = await LearnerService.hasLearners();

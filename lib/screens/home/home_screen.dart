@@ -3,7 +3,7 @@ import '../../constants/colors.dart';
 import '../../services/learner_service.dart';
 import '../common_widgets/gradient_background.dart';
 import '../welcome/welcome_screen.dart';
-import 'therapist_screen.dart';
+import '../auth/therapist_login_screen.dart';
 import 'patient_selection_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -160,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const TherapistScreen(),
+                            builder: (context) => const TherapistLoginScreen(),
                           ),
                         );
                       },
