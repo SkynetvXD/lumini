@@ -242,143 +242,155 @@ class _AddPatientByEmailDialogState extends State<AddPatientByEmailDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final maxDialogWidth = MediaQuery.of(context).size.width * 0.95;
+
     return AlertDialog(
       title: Row(
         children: [
           Icon(Icons.person_add, color: Colors.blue.shade700),
           const SizedBox(width: 8),
-          const Text('Registrar Paciente por Email'),
+          Flexible(
+            child: Text(
+              'Registrar Paciente por Email',
+              style: const TextStyle(fontSize: 20),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
       content: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Informação importante
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue.shade200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.blue.shade700, size: 16),
-                        const SizedBox(width: 4),
-                        const Text(
-                          'Como funciona:',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      '• O paciente precisará do email informado\n• Ele fará login com conta Google\n• Os dados dos treinos ficarão isolados\n• Você terá acesso aos relatórios dele',
-                      style: TextStyle(fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-              
-              const SizedBox(height: 20),
-              
-              // Campo de email
-              TextFormField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: "Email do Paciente *",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.email),
-                  hintText: 'paciente@email.com',
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return "Por favor, informe o email";
-                  }
-                  if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
-                    return "Por favor, informe um email válido";
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              
-              // Campo de nome
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: "Nome do Paciente *",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().length < 2) {
-                    return "Por favor, informe um nome válido";
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              
-              // Campo de data de nascimento
-              TextFormField(
-                decoration: InputDecoration(
-                  labelText: "Data de Nascimento (opcional)",
-                  border: const OutlineInputBorder(),
-                  prefixIcon: const Icon(Icons.calendar_today),
-                  hintText: 'DD/MM/AAAA',
-                  errorText: _dateErrorText,
-                  helperText: 'Exemplo: 15/08/2010',
-                ),
-                keyboardType: TextInputType.datetime,
-                onChanged: _updateBirthDate,
-              ),
-              const SizedBox(height: 16),
-              
-              // Campo de diagnóstico
-              TextFormField(
-                controller: _diagnosisController,
-                decoration: const InputDecoration(
-                  labelText: "Diagnóstico (opcional)",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.medical_information),
-                ),
-                maxLines: 2,
-              ),
-              
-              const SizedBox(height: 20),
-              
-              // Aviso sobre limite
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.warning_amber_outlined, color: Colors.orange.shade700, size: 16),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Limite: 10 pacientes por terapeuta',
-                        style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxDialogWidth),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Informação importante
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.blue.shade700, size: 16),
+                          const SizedBox(width: 4),
+                          const Text(
+                            'Como funciona:',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      const Text(
+                        '• O paciente precisará do email informado\n• Ele fará login com conta Google\n• Os dados dos treinos ficarão isolados\n• Você terá acesso aos relatórios dele',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                
+                const SizedBox(height: 20),
+                
+                // Campo de email
+                TextFormField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: "Email do Paciente *",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.email),
+                    hintText: 'paciente@email.com',
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return "Por favor, informe o email";
+                    }
+                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
+                      return "Por favor, informe um email válido";
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                
+                // Campo de nome
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: "Nome do Paciente *",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().length < 2) {
+                      return "Por favor, informe um nome válido";
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                
+                // Campo de data de nascimento
+                TextFormField(
+                  decoration: InputDecoration(
+                    labelText: "Data de Nascimento (opcional)",
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.calendar_today),
+                    hintText: 'DD/MM/AAAA',
+                    errorText: _dateErrorText,
+                    helperText: 'Exemplo: 15/08/2010',
+                  ),
+                  keyboardType: TextInputType.datetime,
+                  onChanged: _updateBirthDate,
+                ),
+                const SizedBox(height: 16),
+                
+                // Campo de diagnóstico
+                TextFormField(
+                  controller: _diagnosisController,
+                  decoration: const InputDecoration(
+                    labelText: "Diagnóstico (opcional)",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.medical_information),
+                  ),
+                  maxLines: 2,
+                ),
+                
+                const SizedBox(height: 20),
+                
+                // Aviso sobre limite
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber_outlined, color: Colors.orange.shade700, size: 16),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Limite: 10 pacientes por terapeuta',
+                          style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

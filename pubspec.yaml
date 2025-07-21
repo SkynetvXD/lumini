@@ -13,17 +13,19 @@ dependencies:
   # Dependências existentes
   shared_preferences: ^2.2.2
   intl: ^0.18.1
-  printing: ^5.13.1
   path_provider: ^2.1.5
   
   # Dependências para autenticação (versões específicas testadas)
   firebase_core: ^2.25.4
-  firebase_auth: ^4.17.4
+  firebase_auth: ^4.16.0
   google_sign_in: ^6.2.6
   
-  # Dependências para relatórios (opcional, manter comentado por enquanto)
-  # pdf: ^3.10.7
-  # share_plus: ^7.2.1
+  # Dependências para relatórios PDF (HABILITADAS)
+  pdf: ^3.11.3
+  printing: 5.13.4
+  
+  # Dependências úteis adicionais
+  share_plus: ^7.2.1
 
 dev_dependencies:
   flutter_test:

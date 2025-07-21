@@ -1,13 +1,14 @@
+// lib/screens/home/therapist_screen.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/learner.dart';
-import '../../services/learner_service.dart';
 import '../../services/progress_service.dart';
 import '../../services/pdf_report_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/therapist_patient_service.dart';
 import '../../utils/pdf_helper.dart';
 import '../common_widgets/gradient_background.dart';
-import '../learner/add_learner_dialog.dart';
+import '../therapist/add_patient_by_email_dialog.dart';
 import 'home_screen.dart';
 
 class TherapistScreen extends StatefulWidget {
@@ -18,7 +19,7 @@ class TherapistScreen extends StatefulWidget {
 }
 
 class _TherapistScreenState extends State<TherapistScreen> {
-  List<Learner> _learners = [];
+  List<Learner> _gmailPatients = [];
   bool _isLoading = true;
   final DateFormat dateFormat = DateFormat('dd/MM/yyyy');
   final DateFormat timeFormat = DateFormat('HH:mm');
@@ -32,7 +33,7 @@ class _TherapistScreenState extends State<TherapistScreen> {
   void initState() {
     super.initState();
     _loadTherapistData();
-    _loadLearners();
+    _loadGmailPatients();
   }
 
   @override
@@ -48,7 +49,6 @@ class _TherapistScreenState extends State<TherapistScreen> {
       final isLoggedIn = await AuthService.isTherapistLoggedIn();
       
       if (!isLoggedIn || therapistData == null) {
-        // Se não estiver logado, voltar para a tela inicial
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -75,15 +75,20 @@ class _TherapistScreenState extends State<TherapistScreen> {
     }
   }
 
-  Future<void> _loadLearners() async {
+  // Carregar pacientes Gmail
+  Future<void> _loadGmailPatients() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final learners = await LearnerService.getAllLearners();
+      List<Learner> gmailPatients = [];
+      if (_therapistData != null) {
+        gmailPatients = await TherapistPatientService.getPatientsByTherapist(_therapistData!['uid']);
+      }
+      
       setState(() {
-        _learners = learners;
+        _gmailPatients = gmailPatients;
         _isLoading = false;
       });
     } catch (e) {
@@ -93,19 +98,31 @@ class _TherapistScreenState extends State<TherapistScreen> {
       
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Erro ao carregar pacientes'),
+        SnackBar(
+          content: Text('Erro ao carregar pacientes: $e'),
           backgroundColor: Colors.red,
         ),
       );
     }
   }
 
-  Future<void> _addNewLearner() async {
-    if (_learners.length >= LearnerService.maxLearners) {
+  // Adicionar paciente Gmail
+  Future<void> _addGmailPatient() async {
+    if (_therapistData == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Limite de 10 pacientes atingido'),
+          content: Text('Dados do terapeuta não encontrados'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final canAdd = await TherapistPatientService.canAddMorePatients(_therapistData!['uid']);
+    if (!canAdd) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Limite de 10 pacientes Gmail atingido'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -114,20 +131,21 @@ class _TherapistScreenState extends State<TherapistScreen> {
 
     final added = await showDialog<bool>(
       context: context,
-      builder: (context) => const AddLearnerDialog(),
+      builder: (context) => const AddPatientByEmailDialog(),
     );
 
     if (added == true) {
-      await _loadLearners();
+      await _loadGmailPatients();
     }
   }
 
-  Future<void> _removeLearner(Learner learner) async {
+  // Remover paciente Gmail
+  Future<void> _removePatient(Learner patient) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Remover paciente'),
-        content: Text('Tem certeza que deseja remover ${learner.name}? Esta ação não pode ser desfeita.'),
+        content: Text('Tem certeza que deseja remover ${patient.name}? Esta ação não pode ser desfeita.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -148,14 +166,15 @@ class _TherapistScreenState extends State<TherapistScreen> {
     });
 
     try {
-      final success = await LearnerService.removeLearner(learner.id);
+      final success = await TherapistPatientService.removePatient(patient.id);
+      
       if (success) {
-        await _loadLearners();
+        await _loadGmailPatients();
         
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${learner.name} foi removido com sucesso'),
+            content: Text('${patient.name} foi removido com sucesso'),
             backgroundColor: Colors.green,
           ),
         );
@@ -179,24 +198,23 @@ class _TherapistScreenState extends State<TherapistScreen> {
       
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Erro ao remover paciente'),
+        SnackBar(
+          content: Text('Erro ao remover paciente: $e'),
           backgroundColor: Colors.red,
         ),
       );
     }
   }
 
-  Future<void> _generateWeeklyReport(Learner learner) async {
-    // Mostrar diálogo para seleção de período
+  // Gerar relatório
+  Future<void> _generateWeeklyReport(Learner patient) async {
     final dateRange = await showDialog<Map<String, DateTime>>(
       context: context,
-      builder: (context) => _WeeklyReportDialog(learner: learner),
+      builder: (context) => _WeeklyReportDialog(learner: patient),
     );
 
     if (dateRange == null) return;
 
-    // Mostrar diálogo de progresso
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -213,12 +231,8 @@ class _TherapistScreenState extends State<TherapistScreen> {
     );
 
     try {
-      // Definir o aprendiz atual para carregar seus dados
-      await LearnerService.setCurrentLearnerId(learner.id);
-      
-      // Gerar o relatório PDF
       final reportFile = await PdfReportService.generateWeeklyReport(
-        learner: learner,
+        learner: patient,
         startDate: dateRange['startDate']!,
         endDate: dateRange['endDate']!,
         therapistName: _therapistNameController.text,
@@ -226,13 +240,10 @@ class _TherapistScreenState extends State<TherapistScreen> {
 
       if (!mounted) return;
       
-      // Fechar diálogo de progresso
       Navigator.of(context).pop();
 
-      // Obter informações do PDF
       final pdfInfo = await PdfHelper.getPdfInfo(reportFile);
 
-      // Mostrar diálogo de sucesso com opções
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -248,7 +259,7 @@ class _TherapistScreenState extends State<TherapistScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Relatório semanal de ${learner.name} foi gerado com sucesso!',
+                'Relatório semanal de ${patient.name} foi gerado com sucesso!',
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
@@ -280,37 +291,13 @@ class _TherapistScreenState extends State<TherapistScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.lightbulb_outline, color: Colors.green.shade700, size: 16),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Use os botões abaixo para visualizar, compartilhar ou imprimir o relatório.',
-                        style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
           actions: [
-            // Botão Fechar
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('FECHAR'),
             ),
-            
-            // Botão Compartilhar
             ElevatedButton.icon(
               onPressed: () async {
                 Navigator.of(context).pop();
@@ -323,8 +310,6 @@ class _TherapistScreenState extends State<TherapistScreen> {
                 foregroundColor: Colors.white,
               ),
             ),
-            
-            // Botão Visualizar
             ElevatedButton.icon(
               onPressed: () async {
                 Navigator.of(context).pop();
@@ -343,7 +328,6 @@ class _TherapistScreenState extends State<TherapistScreen> {
     } catch (e) {
       if (!mounted) return;
       
-      // Fechar diálogo de progresso se ainda estiver aberto
       Navigator.of(context).pop();
       
       ScaffoldMessenger.of(context).showSnackBar(
@@ -352,7 +336,7 @@ class _TherapistScreenState extends State<TherapistScreen> {
           backgroundColor: Colors.red,
           action: SnackBarAction(
             label: 'TENTAR NOVAMENTE',
-            onPressed: () => _generateWeeklyReport(learner),
+            onPressed: () => _generateWeeklyReport(patient),
           ),
         ),
       );
@@ -383,44 +367,82 @@ class _TherapistScreenState extends State<TherapistScreen> {
     );
   }
 
-  Future<void> _showLearnerProgress(Learner learner) async {
-    // Carregar dados de progresso do paciente
-    await LearnerService.setCurrentLearnerId(learner.id);
-    
-    final colorStats = await ProgressService.getColorTrainingStats();
-    final shapeStats = await ProgressService.getShapeTrainingStats();
-    final quantityStats = await ProgressService.getQuantityTrainingStats();
-    final overallProgress = await ProgressService.getOverallProgress();
+  // Mostrar progresso do paciente
+  Future<void> _showPatientProgress(Learner patient) async {
+    try {
+      final colorStats = await ProgressService.getColorTrainingStats();
+      final shapeStats = await ProgressService.getShapeTrainingStats();
+      final quantityStats = await ProgressService.getQuantityTrainingStats();
+      final overallProgress = await ProgressService.getOverallProgress();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Progresso de ${learner.name}'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildProgressSection('Treino de Cores', colorStats),
-              const SizedBox(height: 16),
-              _buildProgressSection('Treino de Formas', shapeStats),
-              const SizedBox(height: 16),
-              _buildProgressSection('Treino de Quantidades', quantityStats),
-              const SizedBox(height: 16),
-              _buildOverallProgressSection(overallProgress),
-            ],
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Progresso de ${patient.name}'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Badge para indicar tipo de paciente Gmail
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.cloud,
+                        size: 16,
+                        color: Colors.blue.shade700,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Paciente Gmail',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                _buildProgressSection('Treino de Cores', colorStats),
+                const SizedBox(height: 16),
+                _buildProgressSection('Treino de Formas', shapeStats),
+                const SizedBox(height: 16),
+                _buildProgressSection('Treino de Quantidades', quantityStats),
+                const SizedBox(height: 16),
+                _buildOverallProgressSection(overallProgress),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('FECHAR'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('FECHAR'),
-          ),
-        ],
-      ),
-    );
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao carregar progresso: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Widget _buildProgressSection(String title, List<Map<String, dynamic>> stats) {
@@ -490,7 +512,6 @@ class _TherapistScreenState extends State<TherapistScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (_therapistData != null) ...[
-              // Mostrar informações do terapeuta
               Row(
                 children: [
                   CircleAvatar(
@@ -540,7 +561,6 @@ class _TherapistScreenState extends State<TherapistScreen> {
             onPressed: () async {
               Navigator.of(context).pop();
               
-              // Mostrar indicador de carregamento
               showDialog(
                 context: context,
                 barrierDismissible: false,
@@ -557,26 +577,22 @@ class _TherapistScreenState extends State<TherapistScreen> {
               );
               
               try {
-                // Fazer logout
                 await AuthService.signOut();
-                
-                if (mounted) {
-                  Navigator.of(context).pop(); // Fechar dialog de carregamento
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (context) => const HomeScreen()),
-                    (route) => false,
-                  );
-                }
+                if (!mounted) return;
+                Navigator.of(context).pop();
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const HomeScreen()),
+                  (route) => false,
+                );
               } catch (e) {
-                if (mounted) {
-                  Navigator.of(context).pop(); // Fechar dialog de carregamento
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Erro ao fazer logout: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
+                if (!mounted) return;
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Erro ao fazer logout: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
               }
             },
             style: ElevatedButton.styleFrom(
@@ -761,7 +777,6 @@ class _TherapistScreenState extends State<TherapistScreen> {
           tooltip: 'Sair do painel',
         ),
         actions: [
-          // Avatar do terapeuta
           if (_therapistData != null)
             Padding(
               padding: const EdgeInsets.only(right: 8.0),
@@ -783,14 +798,11 @@ class _TherapistScreenState extends State<TherapistScreen> {
                     : null,
               ),
             ),
-          
-          // Botão para gerenciar PDFs
           IconButton(
             icon: const Icon(Icons.folder),
             onPressed: () => _showPdfManagement(),
             tooltip: 'Relatórios salvos',
           ),
-          // Botão para configurar nome do terapeuta
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () => _showTherapistNameDialog(),
@@ -802,16 +814,24 @@ class _TherapistScreenState extends State<TherapistScreen> {
         colors: [Colors.green.shade100, Colors.green.shade300],
         child: _isLoading
             ? const Center(child: CircularProgressIndicator(color: Colors.white))
-            : _learners.isEmpty
-                ? _buildEmptyState()
-                : _buildLearnersList(),
+            : _buildGmailPatientsContent(),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addNewLearner,
+      floatingActionButton: FloatingActionButton.extended(
         backgroundColor: Colors.green,
-        child: const Icon(Icons.add),
+        onPressed: _addGmailPatient,
+        icon: const Icon(Icons.cloud),
+        label: const Text('Adicionar Paciente Gmail'),
       ),
     );
+  }
+
+  // Conteúdo principal - apenas pacientes Gmail
+  Widget _buildGmailPatientsContent() {
+    if (_gmailPatients.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    return _buildPatientsList();
   }
 
   Widget _buildEmptyState() {
@@ -820,13 +840,13 @@ class _TherapistScreenState extends State<TherapistScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.people_outline,
+            Icons.cloud_off,
             size: 80,
             color: Colors.white.withAlpha(150),
           ),
           const SizedBox(height: 16),
           const Text(
-            'Nenhum paciente cadastrado',
+            'Nenhum paciente Gmail cadastrado',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -835,7 +855,7 @@ class _TherapistScreenState extends State<TherapistScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Toque no botão + para adicionar um novo paciente',
+            'Toque no botão abaixo para\nadicionar um novo paciente',
             style: TextStyle(
               fontSize: 16,
               color: Colors.white.withAlpha(200),
@@ -847,7 +867,7 @@ class _TherapistScreenState extends State<TherapistScreen> {
     );
   }
 
-  Widget _buildLearnersList() {
+  Widget _buildPatientsList() {
     return Column(
       children: [
         // Cabeçalho
@@ -863,17 +883,27 @@ class _TherapistScreenState extends State<TherapistScreen> {
           ),
           child: Column(
             children: [
-              const Text(
-                'Meus Pacientes',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+              const Row(
+                children: [
+                  Icon(
+                    Icons.cloud,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Meus Pacientes Gmail',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               Text(
-                'Total: ${_learners.length} de ${LearnerService.maxLearners} pacientes',
+                'Total: ${_gmailPatients.length} de ${TherapistPatientService.maxPatientsPerTherapist} pacientes',
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.white.withAlpha(200),
@@ -888,35 +918,62 @@ class _TherapistScreenState extends State<TherapistScreen> {
         // Lista de pacientes
         Expanded(
           child: ListView.builder(
-            itemCount: _learners.length,
+            itemCount: _gmailPatients.length,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             itemBuilder: (context, index) {
-              final learner = _learners[index];
-              
+              final patient = _gmailPatients[index];
+
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 elevation: 3,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                    color: Colors.blue.shade200,
+                    width: 1,
+                  ),
                 ),
                 child: ListTile(
                   contentPadding: const EdgeInsets.all(16),
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.green.shade500,
-                    radius: 25,
-                    child: Text(
-                      learner.name.substring(0, 1).toUpperCase(),
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                  leading: Stack(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: Colors.blue.shade500,
+                        radius: 25,
+                        child: Text(
+                          patient.name.substring(0, 1).toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
-                    ),
+                      // Badge Gmail
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          width: 16,
+                          height: 16,
+                          decoration: BoxDecoration(
+                            color: Colors.blue,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: const Icon(
+                            Icons.cloud,
+                            size: 8,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   title: Padding(
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
-                      learner.name,
+                      patient.name,
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -927,20 +984,42 @@ class _TherapistScreenState extends State<TherapistScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 8),
+                      
+                      // Email
+                      if (patient.email != null) ...[
+                        Row(
+                          children: [
+                            const Icon(Icons.email, size: 16, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                patient.email!,
+                                style: const TextStyle(fontSize: 14),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+                      
+                      // Data de nascimento
                       Row(
                         children: [
                           const Icon(Icons.cake, size: 16, color: Colors.grey),
                           const SizedBox(width: 4),
                           Flexible(
                             child: Text(
-                              '${dateFormat.format(learner.birthDate)} (${learner.age} anos)',
+                              '${dateFormat.format(patient.birthDate)} (${patient.age} anos)',
                               style: const TextStyle(fontSize: 14),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
                       ),
-                      if (learner.diagnosis != null && learner.diagnosis!.isNotEmpty) ...[
+                      
+                      // Diagnóstico
+                      if (patient.diagnosis != null && patient.diagnosis!.isNotEmpty) ...[
                         const SizedBox(height: 6),
                         Row(
                           children: [
@@ -948,7 +1027,7 @@ class _TherapistScreenState extends State<TherapistScreen> {
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
-                                learner.diagnosis!,
+                                patient.diagnosis!,
                                 style: const TextStyle(fontSize: 14),
                                 overflow: TextOverflow.ellipsis,
                                 maxLines: 1,
@@ -957,7 +1036,9 @@ class _TherapistScreenState extends State<TherapistScreen> {
                           ],
                         ),
                       ],
-                      if (learner.lastAccess != null) ...[
+                      
+                      // Último acesso
+                      if (patient.lastAccess != null) ...[
                         const SizedBox(height: 6),
                         Row(
                           children: [
@@ -965,7 +1046,7 @@ class _TherapistScreenState extends State<TherapistScreen> {
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
-                                'Último acesso: ${dateFormat.format(learner.lastAccess!)} às ${timeFormat.format(learner.lastAccess!)}',
+                                'Último acesso: ${dateFormat.format(patient.lastAccess!)} às ${timeFormat.format(patient.lastAccess!)}',
                                 style: const TextStyle(fontSize: 12, color: Colors.grey),
                                 overflow: TextOverflow.ellipsis,
                                 maxLines: 1,
@@ -987,7 +1068,7 @@ class _TherapistScreenState extends State<TherapistScreen> {
                         ),
                         child: IconButton(
                           icon: Icon(Icons.picture_as_pdf, color: Colors.red.shade700),
-                          onPressed: () => _generateWeeklyReport(learner),
+                          onPressed: () => _generateWeeklyReport(patient),
                           tooltip: 'Gerar relatório PDF',
                           constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
                         ),
@@ -1001,7 +1082,7 @@ class _TherapistScreenState extends State<TherapistScreen> {
                         ),
                         child: IconButton(
                           icon: Icon(Icons.analytics, color: Colors.blue.shade700),
-                          onPressed: () => _showLearnerProgress(learner),
+                          onPressed: () => _showPatientProgress(patient),
                           tooltip: 'Ver progresso',
                           constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
                         ),
@@ -1015,7 +1096,7 @@ class _TherapistScreenState extends State<TherapistScreen> {
                         ),
                         child: IconButton(
                           icon: Icon(Icons.delete_outline, color: Colors.red.shade700),
-                          onPressed: () => _removeLearner(learner),
+                          onPressed: () => _removePatient(patient),
                           tooltip: 'Remover paciente',
                           constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
                         ),
@@ -1057,7 +1138,6 @@ class _WeeklyReportDialogState extends State<_WeeklyReportDialog> {
           const Text('Selecione o período para o relatório:'),
           const SizedBox(height: 16),
           
-          // Data de início
           ListTile(
             leading: const Icon(Icons.calendar_today),
             title: const Text('Data de Início'),
@@ -1077,7 +1157,6 @@ class _WeeklyReportDialogState extends State<_WeeklyReportDialog> {
             },
           ),
           
-          // Data de fim
           ListTile(
             leading: const Icon(Icons.calendar_today),
             title: const Text('Data de Fim'),
@@ -1099,7 +1178,6 @@ class _WeeklyReportDialogState extends State<_WeeklyReportDialog> {
           
           const SizedBox(height: 16),
           
-          // Botões de período rápido
           Wrap(
             spacing: 8,
             children: [

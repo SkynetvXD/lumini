@@ -13,7 +13,6 @@ void main() async {
     await Firebase.initializeApp();
   } catch (e) {
     print('Erro ao inicializar Firebase: $e');
-    // Continuar mesmo se houver erro na inicialização do Firebase
   }
   
   // Verifica se já há aprendizes cadastrados
@@ -25,7 +24,7 @@ void main() async {
   }
   
   // Inicia o app sempre com a tela inicial
-  runApp(MyAppWrapper());
+  runApp(const MyAppWrapper());
 }
 
 class MyAppWrapper extends StatelessWidget {
@@ -40,6 +39,20 @@ class MyAppWrapper extends StatelessWidget {
         brightness: Brightness.light,
       ),
       home: const HomeScreen(),
+      builder: (context, child) {
+        // Garante que diálogos e telas não ultrapassem o tamanho da tela
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            return ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: 600, // Limite opcional para tablets
+                minWidth: 320, // Limite mínimo para celulares pequenos
+              ),
+              child: child!,
+            );
+          },
+        );
+      },
     );
   }
 }

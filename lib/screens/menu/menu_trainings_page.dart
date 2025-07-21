@@ -6,7 +6,6 @@ import '../../services/progress_service.dart';
 import '../../utils/message_helper.dart';
 import '../colors_training/colors_training_page.dart';
 import '../common_widgets/gradient_background.dart';
-import '../learner/learners_management_screen.dart';
 import '../progress/progress_history_page.dart';
 import '../quantity_training/quantity_training_page.dart';
 import '../shapes_training/shapes_training_page.dart';
@@ -42,22 +41,16 @@ class _MenuTrainingsPageState extends State<MenuTrainingsPage> {
   setState(() {
     _isLoading = true;
   });
-  
+
   try {
-    // Verificar se é um paciente autenticado
+    // Só permite paciente autenticado Google
     final isPatientLoggedIn = await PatientAuthService.isPatientLoggedIn();
-    
+
     if (isPatientLoggedIn) {
-      // Carregar dados do paciente autenticado
       final patient = await PatientAuthService.getPatientData();
-      
       if (patient != null) {
-        // Migrar dados antigos se necessário
         await ProgressService.migrateOldDataToNewSystem();
-        
-        // Carregar dados do progresso específico do paciente
         final progress = await ProgressService.getOverallProgress();
-        
         setState(() {
           _currentLearner = patient;
           _isAuthenticatedPatient = true;
@@ -67,22 +60,18 @@ class _MenuTrainingsPageState extends State<MenuTrainingsPage> {
         return;
       }
     }
-    
-    // Fallback para sistema antigo (learners locais)
-    final currentLearner = await LearnerService.getCurrentLearner();
-    final progress = await ProgressService.getOverallProgress();
-    
-    setState(() {
-      _currentLearner = currentLearner;
-      _isAuthenticatedPatient = false;
-      _totalStars = progress['totalStars'] as int;
-      _isLoading = false;
-    });
+
+    // Se não estiver autenticado, volta para HomeScreen
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+        (route) => false,
+      );
+    }
   } catch (e) {
     setState(() {
       _isLoading = false;
     });
-    
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -144,14 +133,6 @@ class _MenuTrainingsPageState extends State<MenuTrainingsPage> {
     Future.delayed(const Duration(seconds: 2), () {
       overlayEntry.remove();
     });
-  }
-  
-  // Navegar para a tela de gerenciamento de aprendizes
-  void _navigateToLearnersManagement() {
-    Navigator.push(
-      context, 
-      MaterialPageRoute(builder: (context) => const LearnersManagementScreen()),
-    ).then((_) => _loadProgressAndLearner());
   }
 
   // Função para mostrar diálogo de logout
@@ -287,23 +268,6 @@ class _MenuTrainingsPageState extends State<MenuTrainingsPage> {
                           // Menu de opções e estrelas
                           Column(
                             children: [
-                              // Botão de gerenciar aprendizes
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withAlpha(51),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: IconButton(
-                                  onPressed: _navigateToLearnersManagement,
-                                  icon: const Icon(
-                                    Icons.switch_account,
-                                    color: Colors.white,
-                                    size: 20,
-                                  ),
-                                  tooltip: 'Trocar paciente',
-                                ),
-                              ),
-                              
                               const SizedBox(height: 8),
                               
                               // Contador de estrelas
