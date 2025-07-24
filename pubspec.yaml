@@ -15,16 +15,21 @@ dependencies:
   intl: ^0.18.1
   path_provider: ^2.1.5
   
-  # Dependências para autenticação (versões específicas testadas)
+  # Dependências para autenticação
   firebase_core: ^2.25.4
   firebase_auth: ^4.16.0
   google_sign_in: ^6.2.6
   
-  # Dependências para relatórios PDF (HABILITADAS)
+  # Dependências para relatórios PDF (SEM PRINTING)
   pdf: ^3.11.3
-  printing: 5.13.4
   
-  # Dependências úteis adicionais
+  # ALTERNATIVAS AO PRINTING (SEM IMPRESSÃO):
+  # Para visualização de PDF
+  flutter_pdfview: ^1.3.2          # Visualizar PDFs nativamente
+  # OU: pdfx: ^2.4.0               # Alternativa moderna
+  # OU: syncfusion_flutter_pdfviewer: ^23.2.7  # Mais robusto
+  
+  # Para compartilhamento (já estava no pubspec)
   share_plus: ^7.2.1
 
 dev_dependencies:

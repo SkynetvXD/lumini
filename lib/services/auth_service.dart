@@ -15,6 +15,26 @@ class AuthService {
   static const String _therapistDataKey = 'therapist_data';
   static const String _isLoggedInKey = 'is_therapist_logged_in';
 
+  // 🔒 LISTA DE EMAILS AUTORIZADOS PARA TERAPEUTAS
+  // ADICIONE AQUI OS EMAILS DOS TERAPEUTAS AUTORIZADOS
+  static const List<String> _authorizedTherapistEmails = [
+    'cogluna.contact@gmail.com',           // ← SEU EMAIL PRINCIPAL
+    'terapeuta@cogluna.com',               // ← EMAIL INSTITUCIONAL
+    'admin@cogluna.com',                   // ← EMAIL ADMIN
+    
+    // 📝 ADICIONE MAIS EMAILS AUTORIZADOS AQUI:
+    // 'dr.fulano@gmail.com',
+    // 'dra.cicrana@hotmail.com',
+    // 'terapeuta.exemplo@clinica.com.br',
+  ];
+
+  // 🔒 DOMÍNIOS INSTITUCIONAIS AUTORIZADOS (OPCIONAL)
+  static const List<String> _authorizedDomains = [
+    '@cogluna.com',                        // ← SEU DOMÍNIO
+    // '@hospital.com.br',                 // ← HOSPITAL
+    // '@clinica.med.br',                  // ← CLÍNICA
+  ];
+
   // Modelo para dados do terapeuta
   static Future<void> _saveTherapistData(Map<String, dynamic> therapistData) async {
     final prefs = await SharedPreferences.getInstance();
@@ -41,16 +61,21 @@ class AuthService {
     // Verificar também se o usuário do Firebase ainda está logado
     final user = _auth.currentUser;
     
-    return isLoggedIn && user != null;
+    if (isLoggedIn && user != null) {
+      // Verificar se o email ainda está autorizado
+      return _isValidTherapistEmail(user.email ?? '');
+    }
+    
+    return false;
   }
 
-  // Login com Google
+  // Login com Google - SEGURO
   static Future<Map<String, dynamic>?> signInWithGoogle() async {
     try {
       // Deslogar primeiro para forçar seleção de conta
       await _googleSignIn.signOut();
       
-      // Iniciar processo de login - API CORRETA
+      // Iniciar processo de login
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       
       if (googleUser == null) {
@@ -72,19 +97,22 @@ class AuthService {
       final User? user = userCredential.user;
 
       if (user != null) {
-        // Verificar se é um email válido para terapeuta
-        if (!_isValidTherapistEmail(user.email ?? '')) {
+        final email = user.email ?? '';
+        
+        // 🔒 VERIFICAÇÃO RIGOROSA DE SEGURANÇA
+        if (!_isValidTherapistEmail(email)) {
           await signOut();
-          throw Exception('Email não autorizado para acesso de terapeuta');
+          throw Exception('🚫 ACESSO NEGADO\n\nEmail: $email\n\nEste email não está autorizado para acesso de terapeuta.\n\nEmails autorizados:\n${_getAuthorizedEmailsList()}');
         }
 
-        // Salvar dados do terapeuta
+        // Salvar dados do terapeuta autorizado
         final therapistData = {
           'uid': user.uid,
           'name': user.displayName ?? 'Terapeuta',
-          'email': user.email ?? '',
+          'email': email,
           'photoUrl': user.photoURL ?? '',
           'loginTime': DateTime.now().toIso8601String(),
+          'authorized': true,
         };
 
         await _saveTherapistData(therapistData);
@@ -100,46 +128,45 @@ class AuthService {
     }
   }
 
-  // Verificar se o email é válido para terapeuta
+  // 🔒 VERIFICAÇÃO RIGOROSA DE EMAIL DE TERAPEUTA
   static bool _isValidTherapistEmail(String email) {
-    // Lista de emails específicos permitidos (ADICIONE SEUS EMAILS AQUI)
-    final allowedEmails = [
-      'cogluna.contact@gmail.com',           // ← ADICIONE SEU EMAIL AQUI
-      'terapeuta@cogluna.com',        // Exemplo com seu domínio
-      'admin@cogluna.com',            // Exemplo admin
-      // Adicione mais emails conforme necessári
-    ];
-
-    // Lista de domínios permitidos
-    final allowedDomains = [
-      '@gmail.com',
-      '@hotmail.com',
-      '@outlook.com',
-      '@yahoo.com',
-      '@cogluna.com',                 // Seu domínio
-      // Adicione domínios específicos da sua instituição
-      // '@hospital.com.br',
-      // '@clinica.med.br',
-    ];
-
-    // Se houver emails específicos permitidos, verificar primeiro
-    if (allowedEmails.isNotEmpty && allowedEmails.contains(email.toLowerCase())) {
+    final emailLower = email.toLowerCase().trim();
+    
+    // Verificar se está na lista de emails específicos autorizados
+    if (_authorizedTherapistEmails.contains(emailLower)) {
       return true;
     }
-
-    // Verificar domínios permitidos
-    for (String domain in allowedDomains) {
-      if (email.toLowerCase().endsWith(domain)) {
+    
+    // Verificar se pertence a domínio autorizado
+    for (String domain in _authorizedDomains) {
+      if (emailLower.endsWith(domain.toLowerCase())) {
         return true;
       }
     }
-
-    // DESENVOLVIMENTO: permitir qualquer email Gmail (REMOVER EM PRODUÇÃO)
-    if (email.toLowerCase().endsWith('@gmail.com')) {
-      return true;
-    }
-
+    
+    // 🚫 ACESSO NEGADO - email não autorizado
     return false;
+  }
+
+  // Obter lista de emails autorizados (para mensagem de erro)
+  static String _getAuthorizedEmailsList() {
+    final buffer = StringBuffer();
+    
+    if (_authorizedTherapistEmails.isNotEmpty) {
+      buffer.writeln('Emails específicos:');
+      for (String email in _authorizedTherapistEmails) {
+        buffer.writeln('• $email');
+      }
+    }
+    
+    if (_authorizedDomains.isNotEmpty) {
+      buffer.writeln('\nDomínios autorizados:');
+      for (String domain in _authorizedDomains) {
+        buffer.writeln('• *$domain');
+      }
+    }
+    
+    return buffer.toString();
   }
 
   // Logout
@@ -184,7 +211,9 @@ class AuthService {
       final user = _auth.currentUser;
       if (user != null) {
         await user.reauthenticateWithCredential(credential);
-        return true;
+        
+        // Verificar se ainda está autorizado
+        return _isValidTherapistEmail(user.email ?? '');
       }
 
       return false;
@@ -249,5 +278,41 @@ class AuthService {
     final difference = now.difference(lastSignIn);
     
     return difference.inMinutes > 5;
+  }
+
+  // 🔧 MÉTODOS ADMINISTRATIVOS
+
+  // Verificar se um email está autorizado (debug)
+  static bool checkEmailAuthorization(String email) {
+    return _isValidTherapistEmail(email);
+  }
+
+  // Obter lista de emails autorizados (debug)
+  static List<String> getAuthorizedEmails() {
+    return List.from(_authorizedTherapistEmails);
+  }
+
+  // Obter lista de domínios autorizados (debug)
+  static List<String> getAuthorizedDomains() {
+    return List.from(_authorizedDomains);
+  }
+
+  // 🔒 VALIDAÇÃO ADICIONAL DE SEGURANÇA
+  static Future<bool> validateCurrentSession() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return false;
+      
+      final email = user.email ?? '';
+      if (!_isValidTherapistEmail(email)) {
+        await signOut();
+        return false;
+      }
+      
+      return true;
+    } catch (e) {
+      print('Erro na validação de sessão: $e');
+      return false;
+    }
   }
 }

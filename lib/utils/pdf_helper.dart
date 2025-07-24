@@ -1,43 +1,42 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:printing/printing.dart';
+import 'package:flutter_pdfview/flutter_pdfview.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 
 class PdfHelper {
-  // Visualizar PDF na tela
+  // Função auxiliar para mostrar mensagens usando SnackBar nativo
+  static void _showMessage(BuildContext? context, String message, {Color? backgroundColor}) {
+    if (context != null && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: backgroundColor ?? Colors.blue,
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      );
+    }
+  }
+
+  // Visualizar PDF na tela usando flutter_pdfview
   static Future<void> showPdfPreview(BuildContext context, File pdfFile) async {
     try {
-      final bytes = await pdfFile.readAsBytes();
-      
+      if (!await pdfFile.exists()) {
+        throw Exception('Arquivo PDF não encontrado');
+      }
+
       if (!context.mounted) return;
       
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => Scaffold(
-            appBar: AppBar(
-              title: const Text('Visualizar Relatório'),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.share),
-                  onPressed: () => sharePdf(pdfFile),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.print),
-                  onPressed: () => printPdf(bytes),
-                ),
-              ],
-            ),
-            body: PdfPreview(
-              build: (format) => Future.value(Uint8List.fromList(bytes)),
-              allowPrinting: true,
-              allowSharing: true,
-              canChangePageFormat: false,
-              canDebug: false,
-            ),
-          ),
+          builder: (context) => _PdfViewerScreen(pdfFile: pdfFile),
         ),
       );
     } catch (e) {
@@ -51,38 +50,33 @@ class PdfHelper {
     }
   }
 
-  // Compartilhar PDF
-  static Future<void> sharePdf(File pdfFile) async {
+  // Compartilhar PDF usando share_plus
+  static Future<void> sharePdf(File pdfFile, {BuildContext? context}) async {
     try {
-      final bytes = await pdfFile.readAsBytes();
-      await Printing.sharePdf(
-        bytes: Uint8List.fromList(bytes),
-        filename: pdfFile.path.split('/').last,
+      if (!await pdfFile.exists()) {
+        throw Exception('Arquivo não encontrado');
+      }
+
+      final result = await Share.shareXFiles(
+        [XFile(pdfFile.path)],
+        text: 'Relatório de progresso - Lumimi',
+        subject: 'Relatório PDF',
       );
+
+      if (result.status == ShareResultStatus.success) {
+        _showMessage(context, "PDF compartilhado com sucesso!", backgroundColor: Colors.green);
+      }
     } catch (e) {
       if (kDebugMode) {
         debugPrint('Erro ao compartilhar PDF: $e');
       }
-    }
-  }
-
-  // Imprimir PDF
-  static Future<void> printPdf(List<int> bytes) async {
-    try {
-      await Printing.layoutPdf(
-        onLayout: (format) => Future.value(Uint8List.fromList(bytes)),
-      );
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Erro ao imprimir PDF: $e');
-      }
+      _showMessage(context, "Erro ao compartilhar PDF", backgroundColor: Colors.red);
     }
   }
 
   // Salvar PDF em local específico
-  static Future<File?> savePdfToDownloads(File pdfFile, String customName) async {
+  static Future<File?> savePdfToDownloads(File pdfFile, String customName, {BuildContext? context}) async {
     try {
-      // Tentar salvar no diretório de downloads
       Directory? downloadsDir;
       
       if (Platform.isAndroid) {
@@ -96,14 +90,19 @@ class PdfHelper {
       if (downloadsDir != null && await downloadsDir.exists()) {
         final newFile = File('${downloadsDir.path}/$customName');
         await newFile.writeAsBytes(await pdfFile.readAsBytes());
+        
+        _showMessage(context, "PDF salvo com sucesso!", backgroundColor: Colors.green);
+        
         return newFile;
       }
       
+      _showMessage(context, "Não foi possível salvar o PDF", backgroundColor: Colors.orange);
       return null;
     } catch (e) {
       if (kDebugMode) {
         debugPrint('Erro ao salvar PDF: $e');
       }
+      _showMessage(context, "Erro ao salvar PDF", backgroundColor: Colors.red);
       return null;
     }
   }
@@ -147,7 +146,6 @@ class PdfHelper {
     try {
       final bytes = await pdfFile.readAsBytes();
       
-      // Verificar se começa com a assinatura PDF
       if (bytes.length < 4) return false;
       
       final header = String.fromCharCodes(bytes.take(4));
@@ -158,27 +156,37 @@ class PdfHelper {
   }
 
   // Limpar PDFs antigos
-  static Future<void> cleanOldPdfs({int maxAgeInDays = 30}) async {
+  static Future<void> cleanOldPdfs({int maxAgeInDays = 30, BuildContext? context}) async {
     try {
       final directory = await getApplicationDocumentsDirectory();
       final files = directory.listSync();
       final cutoffDate = DateTime.now().subtract(Duration(days: maxAgeInDays));
+      
+      int deletedCount = 0;
       
       for (var file in files) {
         if (file is File && file.path.endsWith('.pdf')) {
           final stat = await file.stat();
           if (stat.modified.isBefore(cutoffDate)) {
             await file.delete();
+            deletedCount++;
             if (kDebugMode) {
               debugPrint('PDF antigo removido: ${file.path}');
             }
           }
         }
       }
+      
+      if (deletedCount > 0) {
+        _showMessage(context, "$deletedCount relatórios antigos removidos", backgroundColor: Colors.blue);
+      } else {
+        _showMessage(context, "Nenhum relatório antigo encontrado", backgroundColor: Colors.grey);
+      }
     } catch (e) {
       if (kDebugMode) {
         debugPrint('Erro ao limpar PDFs antigos: $e');
       }
+      _showMessage(context, "Erro ao limpar relatórios antigos", backgroundColor: Colors.red);
     }
   }
 
@@ -211,14 +219,6 @@ class PdfHelper {
     }
   }
 
-  // Método auxiliar para conversão segura de bytes
-  static Uint8List _listToUint8List(List<int> list) {
-    if (list is Uint8List) {
-      return list;
-    }
-    return Uint8List.fromList(list);
-  }
-
   // Verificar espaço disponível no dispositivo
   static Future<bool> hasEnoughSpace({int requiredBytes = 1024 * 1024}) async {
     try {
@@ -226,14 +226,12 @@ class PdfHelper {
       final stat = await directory.stat();
       
       // Esta é uma verificação simplificada
-      // Em uma implementação real, você pode usar plugins específicos
-      // para verificar espaço livre no dispositivo
       return true;
     } catch (e) {
       if (kDebugMode) {
         debugPrint('Erro ao verificar espaço: $e');
       }
-      return true; // Assumir que há espaço em caso de erro
+      return true;
     }
   }
 
@@ -241,11 +239,10 @@ class PdfHelper {
   static Future<String> calculateFileHash(File pdfFile) async {
     try {
       final bytes = await pdfFile.readAsBytes();
-      // Implementação simplificada de hash
       int hash = 0;
       for (int byte in bytes) {
         hash = hash * 31 + byte;
-        hash = hash & 0x7FFFFFFF; // Manter positivo
+        hash = hash & 0x7FFFFFFF;
       }
       return hash.toString();
     } catch (e) {
@@ -280,53 +277,6 @@ class PdfHelper {
     }
   }
 
-  // Compactar PDF (implementação básica)
-  static Future<File?> compressPdf(File pdfFile) async {
-    try {
-      // Esta é uma implementação placeholder
-      // Para compressão real de PDF, você precisaria de uma biblioteca específica
-      // como pdf_compressor ou similar
-      
-      final compressedPath = pdfFile.path.replaceAll('.pdf', '_compressed.pdf');
-      final compressedFile = File(compressedPath);
-      
-      // Por enquanto, apenas copia o arquivo
-      await pdfFile.copy(compressedPath);
-      
-      return compressedFile;
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Erro ao compactar PDF: $e');
-      }
-      return null;
-    }
-  }
-
-  // Criptografar PDF (implementação básica)
-  static Future<File?> encryptPdf(File pdfFile, String password) async {
-    try {
-      // Esta é uma implementação placeholder
-      // Para criptografia real de PDF, você precisaria de uma biblioteca específica
-      
-      if (password.isEmpty) {
-        return pdfFile;
-      }
-      
-      final encryptedPath = pdfFile.path.replaceAll('.pdf', '_encrypted.pdf');
-      final encryptedFile = File(encryptedPath);
-      
-      // Por enquanto, apenas copia o arquivo
-      await pdfFile.copy(encryptedPath);
-      
-      return encryptedFile;
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Erro ao criptografar PDF: $e');
-      }
-      return null;
-    }
-  }
-
   // Método para debug (apenas em desenvolvimento)
   static void debugPdfInfo(File pdfFile) {
     if (kDebugMode) {
@@ -339,5 +289,164 @@ class PdfHelper {
         debugPrint('======================');
       });
     }
+  }
+}
+
+// Tela de visualização de PDF usando flutter_pdfview
+class _PdfViewerScreen extends StatefulWidget {
+  final File pdfFile;
+
+  const _PdfViewerScreen({required this.pdfFile});
+
+  @override
+  State<_PdfViewerScreen> createState() => _PdfViewerScreenState();
+}
+
+class _PdfViewerScreenState extends State<_PdfViewerScreen> {
+  int? pages = 0;
+  int? currentPage = 0;
+  bool isReady = false;
+  String errorMessage = '';
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Visualizar Relatório'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share),
+            onPressed: () => PdfHelper.sharePdf(widget.pdfFile, context: context),
+            tooltip: 'Compartilhar',
+          ),
+          IconButton(
+            icon: const Icon(Icons.download),
+            onPressed: () async {
+              final fileName = 'relatorio_${DateTime.now().millisecondsSinceEpoch}.pdf';
+              await PdfHelper.savePdfToDownloads(widget.pdfFile, fileName, context: context);
+            },
+            tooltip: 'Salvar',
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          PDFView(
+            filePath: widget.pdfFile.path,
+            enableSwipe: true,
+            swipeHorizontal: false,
+            autoSpacing: false,
+            pageFling: true,
+            pageSnap: true,
+            defaultPage: currentPage!,
+            fitPolicy: FitPolicy.BOTH,
+            preventLinkNavigation: false,
+            onRender: (pages) {
+              setState(() {
+                this.pages = pages;
+                isReady = true;
+              });
+            },
+            onError: (error) {
+              setState(() {
+                errorMessage = error.toString();
+              });
+            },
+            onPageError: (page, error) {
+              setState(() {
+                errorMessage = '$page: ${error.toString()}';
+              });
+            },
+            onViewCreated: (PDFViewController pdfViewController) {
+              // Controlador criado
+            },
+            onLinkHandler: (String? uri) {
+              // Lidar com links no PDF
+            },
+            onPageChanged: (int? page, int? total) {
+              setState(() {
+                currentPage = page;
+              });
+            },
+          ),
+          
+          // Indicador de carregamento
+          if (!isReady)
+            const Center(
+              child: CircularProgressIndicator(),
+            ),
+          
+          // Mensagem de erro
+          if (errorMessage.isNotEmpty)
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: Colors.red,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Erro ao carregar PDF',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    errorMessage,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Voltar'),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+      
+      // Barra inferior com informações da página
+      bottomNavigationBar: isReady && pages != null && pages! > 0
+          ? Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor,
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 4,
+                    offset: Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.description,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Página ${(currentPage ?? 0) + 1} de $pages',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : null,
+    );
   }
 }

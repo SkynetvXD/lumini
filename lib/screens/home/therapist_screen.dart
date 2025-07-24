@@ -1,4 +1,4 @@
-// lib/screens/home/therapist_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/learner.dart';
@@ -207,159 +207,300 @@ class _TherapistScreenState extends State<TherapistScreen> {
   }
 
   // Gerar relatório
-  Future<void> _generateWeeklyReport(Learner patient) async {
-    final dateRange = await showDialog<Map<String, DateTime>>(
-      context: context,
-      builder: (context) => _WeeklyReportDialog(learner: patient),
+  // Substitua apenas o método _generateWeeklyReport no therapist_screen.dart
+
+// Gerar relatório
+Future<void> _generateWeeklyReport(Learner patient) async {
+  final dateRange = await showDialog<Map<String, DateTime>>(
+    context: context,
+    builder: (context) => _WeeklyReportDialog(learner: patient),
+  );
+
+  if (dateRange == null) return;
+
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => const AlertDialog(
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 16),
+          Text('Gerando relatório PDF...'),
+        ],
+      ),
+    ),
+  );
+
+  try {
+    final reportFile = await PdfReportService.generateWeeklyReport(
+      learner: patient,
+      startDate: dateRange['startDate']!,
+      endDate: dateRange['endDate']!,
+      therapistName: _therapistNameController.text,
     );
 
-    if (dateRange == null) return;
+    if (!mounted) return;
+    
+    Navigator.of(context).pop();
+
+    final pdfInfo = await PdfHelper.getPdfInfo(reportFile);
 
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => const AlertDialog(
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.picture_as_pdf, color: Colors.red.shade700),
+            const SizedBox(width: 8),
+            const Text('Relatório PDF Gerado'),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Gerando relatório PDF...'),
+            Text(
+              'Relatório semanal de ${patient.name} foi gerado com sucesso!',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.blue.shade700, size: 16),
+                      const SizedBox(width: 4),
+                      const Text(
+                        'Informações do arquivo:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _buildInfoRow('Nome:', pdfInfo['name']),
+                  _buildInfoRow('Tamanho:', pdfInfo['sizeString']),
+                  _buildInfoRow('Criado em:', DateFormat('dd/MM/yyyy HH:mm').format(pdfInfo['modified'])),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Opções disponíveis
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.green.shade700, size: 16),
+                      const SizedBox(width: 4),
+                      const Text(
+                        'O que você pode fazer:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text('• Visualizar o PDF na tela', style: TextStyle(fontSize: 12)),
+                  const Text('• Compartilhar via WhatsApp, email, etc.', style: TextStyle(fontSize: 12)),
+                  const Text('• Salvar no dispositivo', style: TextStyle(fontSize: 12)),
+                ],
+              ),
+            ),
           ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('FECHAR'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              // Agora passa o context para mostrar SnackBar de sucesso
+              await PdfHelper.sharePdf(reportFile, context: context);
+            },
+            icon: const Icon(Icons.share, size: 16),
+            label: const Text('COMPARTILHAR'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await PdfHelper.showPdfPreview(context, reportFile);
+            },
+            icon: const Icon(Icons.visibility, size: 16),
+            label: const Text('VISUALIZAR'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  } catch (e) {
+    if (!mounted) return;
+    
+    Navigator.of(context).pop();
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Erro ao gerar relatório: $e'),
+        backgroundColor: Colors.red,
+        action: SnackBarAction(
+          label: 'TENTAR NOVAMENTE',
+          onPressed: () => _generateWeeklyReport(patient),
         ),
       ),
     );
+  }
+}
 
-    try {
-      final reportFile = await PdfReportService.generateWeeklyReport(
-        learner: patient,
-        startDate: dateRange['startDate']!,
-        endDate: dateRange['endDate']!,
-        therapistName: _therapistNameController.text,
-      );
+// TAMBÉM ATUALIZAR o método _showPdfManagement para usar o novo PdfHelper:
 
-      if (!mounted) return;
-      
-      Navigator.of(context).pop();
-
-      final pdfInfo = await PdfHelper.getPdfInfo(reportFile);
-
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.picture_as_pdf, color: Colors.red.shade700),
-              const SizedBox(width: 8),
-              const Text('Relatório PDF Gerado'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Relatório semanal de ${patient.name} foi gerado com sucesso!',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue.shade200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.blue.shade700, size: 16),
-                        const SizedBox(width: 4),
-                        const Text(
-                          'Informações do arquivo:',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+void _showPdfManagement() async {
+  final savedPdfs = await PdfHelper.getAllSavedPdfs();
+  
+  if (!mounted) return;
+  
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Relatórios Salvos'),
+      content: savedPdfs.isEmpty
+          ? const Text('Nenhum relatório salvo encontrado.')
+          : SizedBox(
+              width: double.maxFinite,
+              height: 300,
+              child: ListView.builder(
+                itemCount: savedPdfs.length,
+                itemBuilder: (context, index) {
+                  final file = savedPdfs[index];
+                  final stat = file.statSync();
+                  
+                  return ListTile(
+                    leading: Icon(Icons.picture_as_pdf, color: Colors.red.shade700),
+                    title: Text(
+                      file.path.split('/').last,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    subtitle: Text(
+                      'Criado em: ${DateFormat('dd/MM/yyyy HH:mm').format(stat.modified)}',
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    trailing: PopupMenuButton(
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'view',
+                          child: Row(
+                            children: [
+                              Icon(Icons.visibility, size: 16),
+                              SizedBox(width: 8),
+                              Text('Visualizar'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'share',
+                          child: Row(
+                            children: [
+                              Icon(Icons.share, size: 16),
+                              SizedBox(width: 8),
+                              Text('Compartilhar'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete, size: 16, color: Colors.red),
+                              SizedBox(width: 8),
+                              Text('Excluir', style: TextStyle(color: Colors.red)),
+                            ],
+                          ),
                         ),
                       ],
+                      onSelected: (value) async {
+                        Navigator.of(context).pop();
+                        
+                        switch (value) {
+                          case 'view':
+                            await PdfHelper.showPdfPreview(context, file);
+                            break;
+                          case 'share':
+                            await PdfHelper.sharePdf(file, context: context);
+                            break;
+                          case 'delete':
+                            await file.delete();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Relatório excluído')),
+                            );
+                            break;
+                        }
+                      },
                     ),
-                    const SizedBox(height: 8),
-                    _buildInfoRow('Nome:', pdfInfo['name']),
-                    _buildInfoRow('Tamanho:', pdfInfo['sizeString']),
-                    _buildInfoRow('Criado em:', DateFormat('dd/MM/yyyy HH:mm').format(pdfInfo['modified'])),
-                  ],
-                ),
+                  );
+                },
               ),
-            ],
+            ),
+      actions: [
+        if (savedPdfs.isNotEmpty)
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              // Agora passa o context para o método
+              await PdfHelper.cleanOldPdfs(maxAgeInDays: 30, context: context);
+            },
+            child: const Text('LIMPAR ANTIGOS'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('FECHAR'),
-            ),
-            ElevatedButton.icon(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await PdfHelper.sharePdf(reportFile);
-              },
-              icon: const Icon(Icons.share, size: 16),
-              label: const Text('COMPARTILHAR'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-              ),
-            ),
-            ElevatedButton.icon(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await PdfHelper.showPdfPreview(context, reportFile);
-              },
-              icon: const Icon(Icons.visibility, size: 16),
-              label: const Text('VISUALIZAR'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
+        ElevatedButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('FECHAR'),
         ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      
-      Navigator.of(context).pop();
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao gerar relatório: $e'),
-          backgroundColor: Colors.red,
-          action: SnackBarAction(
-            label: 'TENTAR NOVAMENTE',
-            onPressed: () => _generateWeeklyReport(patient),
-          ),
-        ),
-      );
-    }
-  }
+      ],
+    ),
+  );
+}
 
+  // Helper to build info row for PDF info
   Widget _buildInfoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
-            ),
+          Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
+          const SizedBox(width: 4),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontSize: 12),
+              style: const TextStyle(fontWeight: FontWeight.normal),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -639,112 +780,6 @@ class _TherapistScreenState extends State<TherapistScreen> {
     );
   }
 
-  void _showPdfManagement() async {
-    final savedPdfs = await PdfHelper.getAllSavedPdfs();
-    
-    if (!mounted) return;
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Relatórios Salvos'),
-        content: savedPdfs.isEmpty
-            ? const Text('Nenhum relatório salvo encontrado.')
-            : SizedBox(
-                width: double.maxFinite,
-                height: 300,
-                child: ListView.builder(
-                  itemCount: savedPdfs.length,
-                  itemBuilder: (context, index) {
-                    final file = savedPdfs[index];
-                    final stat = file.statSync();
-                    
-                    return ListTile(
-                      leading: Icon(Icons.picture_as_pdf, color: Colors.red.shade700),
-                      title: Text(
-                        file.path.split('/').last,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      subtitle: Text(
-                        'Criado em: ${DateFormat('dd/MM/yyyy HH:mm').format(stat.modified)}',
-                        style: const TextStyle(fontSize: 10),
-                      ),
-                      trailing: PopupMenuButton(
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: 'view',
-                            child: Row(
-                              children: [
-                                Icon(Icons.visibility, size: 16),
-                                SizedBox(width: 8),
-                                Text('Visualizar'),
-                              ],
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'share',
-                            child: Row(
-                              children: [
-                                Icon(Icons.share, size: 16),
-                                SizedBox(width: 8),
-                                Text('Compartilhar'),
-                              ],
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Row(
-                              children: [
-                                Icon(Icons.delete, size: 16, color: Colors.red),
-                                SizedBox(width: 8),
-                                Text('Excluir', style: TextStyle(color: Colors.red)),
-                              ],
-                            ),
-                          ),
-                        ],
-                        onSelected: (value) async {
-                          Navigator.of(context).pop();
-                          
-                          switch (value) {
-                            case 'view':
-                              await PdfHelper.showPdfPreview(context, file);
-                              break;
-                            case 'share':
-                              await PdfHelper.sharePdf(file);
-                              break;
-                            case 'delete':
-                              await file.delete();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Relatório excluído')),
-                              );
-                              break;
-                          }
-                        },
-                      ),
-                    );
-                  },
-                ),
-              ),
-        actions: [
-          if (savedPdfs.isNotEmpty)
-            TextButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await PdfHelper.cleanOldPdfs(maxAgeInDays: 30);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Relatórios antigos removidos')),
-                );
-              },
-              child: const Text('LIMPAR ANTIGOS'),
-            ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('FECHAR'),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
