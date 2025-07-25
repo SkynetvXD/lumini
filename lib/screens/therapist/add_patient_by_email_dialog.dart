@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../services/therapist_patient_service.dart';
 import '../../services/auth_service.dart';
 
@@ -99,7 +101,7 @@ class _AddPatientByEmailDialogState extends State<AddPatientByEmailDialog> {
         if (!mounted) return;
         
         // Mostrar diálogo de sucesso
-        _showSuccessDialog(result);
+        _showSuccessDialog(result, therapistData);
       } catch (e) {
         if (!mounted) return;
         
@@ -129,7 +131,247 @@ class _AddPatientByEmailDialogState extends State<AddPatientByEmailDialog> {
     }
   }
 
-  void _showSuccessDialog(Map<String, String> result) {
+  // 🆕 Implementar compartilhamento funcional
+  Future<void> _sharePatientInstructions(Map<String, String> result, Map<String, dynamic> therapistData) async {
+    try {
+      // Gerar mensagem completa para compartilhar
+      final message = _generateInstructionMessage(result, therapistData);
+      
+      // Mostrar opções de compartilhamento
+      await _showShareOptions(message, result['email']!);
+      
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao compartilhar: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // 🆕 Gerar mensagem de instruções completa
+  String _generateInstructionMessage(Map<String, String> result, Map<String, dynamic> therapistData) {
+    final patientName = _nameController.text.trim();
+    final patientEmail = result['email']!;
+    final therapistName = therapistData['name'] ?? 'Seu terapeuta';
+    final today = DateFormat('dd/MM/yyyy').format(DateTime.now());
+
+    return '''
+🏥 LUMIMI - Acesso do Paciente 🏥
+
+Olá $patientName!
+
+Você foi cadastrado(a) no aplicativo Lumimi para realizar treinos terapêuticos personalizados.
+
+📱 COMO ACESSAR:
+
+1️⃣ Baixe o app "Lumimi" na loja de aplicativos
+
+2️⃣ Abra o aplicativo e escolha "Paciente"
+
+3️⃣ Toque em "Entrar com Google"
+
+4️⃣ Use esta conta de email:
+📧 $patientEmail
+
+5️⃣ Comece seus treinos personalizados!
+
+🎯 TREINOS DISPONÍVEIS:
+• Treino de Cores
+• Treino de Formas  
+• Treino de Quantidades
+• E muito mais em breve!
+
+👨‍⚕️ EQUIPE RESPONSÁVEL: $therapistName
+
+📅 Data de cadastro: $today
+
+⭐ IMPORTANTE:
+- Use sempre o mesmo email para acessar
+- Seus progressos ficam salvos automaticamente
+- Em caso de dúvidas, entre em contato com sua equipe
+
+🚀 Pronto para começar sua jornada de aprendizado!
+
+#Lumimi #Terapia #Aprendizado''';
+  }
+
+  // 🆕 Mostrar opções de compartilhamento
+  Future<void> _showShareOptions(String message, String patientEmail) async {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Título
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            
+            const Text(
+              'Compartilhar Instruções',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Envie as instruções para: $patientEmail',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 24),
+            
+            // Opções de compartilhamento
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                // WhatsApp
+                _buildShareOption(
+                  icon: Icons.chat,
+                  label: 'WhatsApp',
+                  color: Colors.green,
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await Share.share(
+                      message,
+                      subject: 'Instruções de Acesso - Lumimi',
+                    );
+                    _showSuccessMessage('Instruções compartilhadas!');
+                  },
+                ),
+                
+                // Email
+                _buildShareOption(
+                  icon: Icons.email,
+                  label: 'Email',
+                  color: Colors.blue,
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await Share.share(
+                      message,
+                      subject: 'Suas Instruções de Acesso - App Lumimi',
+                    );
+                    _showSuccessMessage('Instruções compartilhadas!');
+                  },
+                ),
+                
+                // Copiar
+                _buildShareOption(
+                  icon: Icons.copy,
+                  label: 'Copiar',
+                  color: Colors.orange,
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await Clipboard.setData(ClipboardData(text: message));
+                    _showSuccessMessage('Instruções copiadas para a área de transferência!');
+                  },
+                ),
+                
+                // Mais opções
+                _buildShareOption(
+                  icon: Icons.share,
+                  label: 'Outros',
+                  color: Colors.purple,
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await Share.share(
+                      message,
+                      subject: 'Instruções de Acesso - Lumimi',
+                    );
+                    _showSuccessMessage('Instruções compartilhadas!');
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            
+            // Botão cancelar
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 🆕 Widget para opção de compartilhamento
+  Widget _buildShareOption({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: color.withAlpha(25),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: color.withAlpha(76)),
+            ),
+            child: Icon(
+              icon,
+              color: color,
+              size: 28,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🆕 Mostrar mensagem de sucesso
+  void _showSuccessMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  void _showSuccessDialog(Map<String, String> result, Map<String, dynamic> therapistData) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -198,7 +440,7 @@ class _AddPatientByEmailDialogState extends State<AddPatientByEmailDialog> {
                     const SizedBox(width: 8),
                     const Expanded(
                       child: Text(
-                        'Compartilhe essas instruções com seu paciente.',
+                        'Use o botão "COMPARTILHAR" para enviar as instruções completas!',
                         style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
                       ),
                     ),
@@ -217,16 +459,12 @@ class _AddPatientByEmailDialogState extends State<AddPatientByEmailDialog> {
             child: const Text('CONCLUIR'),
           ),
           ElevatedButton.icon(
-            onPressed: () {
-              // Copiar instruções para clipboard (funcionalidade futura)
-              Navigator.of(context).pop();
-              Navigator.of(context).pop(true);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Paciente registrado com sucesso!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+            onPressed: () async {
+              Navigator.of(context).pop(); // Fechar diálogo de sucesso
+              Navigator.of(context).pop(true); // Fechar diálogo principal e retornar sucesso
+              
+              // 🆕 Implementar compartilhamento real
+              await _sharePatientInstructions(result, therapistData);
             },
             icon: const Icon(Icons.share, size: 16),
             label: const Text('COMPARTILHAR'),

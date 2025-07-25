@@ -34,6 +34,192 @@ class ProgressService {
     return baseKey;
   }
 
+  // 🆕 MÉTODOS ESPECÍFICOS PARA PACIENTES (PARA USO DO TERAPEUTA)
+
+  // Obter chave específica de um paciente Gmail
+  static String _getPatientSpecificKey(String baseKey, String patientId) {
+    return '${baseKey}_patient_$patientId';
+  }
+
+  // Obter estatísticas de cores de um paciente específico
+  static Future<List<Map<String, dynamic>>> getPatientColorTrainingStats(String patientId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = _getPatientSpecificKey(_colorTrainingKey, patientId);
+    
+    final statsList = prefs.getStringList(key) ?? [];
+    return statsList.map((statsJson) => 
+      Map<String, dynamic>.from(jsonDecode(statsJson))).toList();
+  }
+
+  // Obter estatísticas de formas de um paciente específico
+  static Future<List<Map<String, dynamic>>> getPatientShapeTrainingStats(String patientId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = _getPatientSpecificKey(_shapeTrainingKey, patientId);
+    
+    final statsList = prefs.getStringList(key) ?? [];
+    return statsList.map((statsJson) => 
+      Map<String, dynamic>.from(jsonDecode(statsJson))).toList();
+  }
+
+  // Obter estatísticas de quantidades de um paciente específico
+  static Future<List<Map<String, dynamic>>> getPatientQuantityTrainingStats(String patientId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = _getPatientSpecificKey(_quantityTrainingKey, patientId);
+    
+    final statsList = prefs.getStringList(key) ?? [];
+    return statsList.map((statsJson) => 
+      Map<String, dynamic>.from(jsonDecode(statsJson))).toList();
+  }
+
+  // Obter progresso geral de um paciente específico
+  static Future<Map<String, dynamic>> getPatientOverallProgress(String patientId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = _getPatientSpecificKey(_overallProgressKey, patientId);
+    
+    final progressJson = prefs.getString(key);
+    
+    if (progressJson == null) {
+      return {
+        'completedTrainings': 0,
+        'totalStars': 0,
+        'colorTrainingCompleted': false,
+        'shapeTrainingCompleted': false,
+        'sequenceTrainingCompleted': false,
+        'imageAssociationCompleted': false,
+        'quantityTrainingCompleted': false,
+        'puzzleTrainingCompleted': false,
+      };
+    }
+    
+    final Map<String, dynamic> progressMap = Map<String, dynamic>.from(jsonDecode(progressJson));
+    
+    // Garantir que todos os campos existam
+    if (!progressMap.containsKey('colorTrainingCompleted')) {
+      progressMap['colorTrainingCompleted'] = false;
+    }
+    if (!progressMap.containsKey('shapeTrainingCompleted')) {
+      progressMap['shapeTrainingCompleted'] = false;
+    }
+    if (!progressMap.containsKey('sequenceTrainingCompleted')) {
+      progressMap['sequenceTrainingCompleted'] = false;
+    }
+    if (!progressMap.containsKey('imageAssociationCompleted')) {
+      progressMap['imageAssociationCompleted'] = false;
+    }
+    if (!progressMap.containsKey('quantityTrainingCompleted')) {
+      progressMap['quantityTrainingCompleted'] = false;
+    }
+    if (!progressMap.containsKey('puzzleTrainingCompleted')) {
+      progressMap['puzzleTrainingCompleted'] = false;
+    }
+    
+    return progressMap;
+  }
+
+  // Obter estatísticas resumidas de um paciente específico
+  static Future<Map<String, dynamic>> getPatientSummaryStats(String patientId) async {
+    final colorStats = await getPatientColorTrainingStats(patientId);
+    final shapeStats = await getPatientShapeTrainingStats(patientId);
+    final quantityStats = await getPatientQuantityTrainingStats(patientId);
+    final overallProgress = await getPatientOverallProgress(patientId);
+
+    // Calcular estatísticas de cada tipo de treino
+    Map<String, dynamic> colorSummary = _calculateTrainingSummary(colorStats);
+    Map<String, dynamic> shapeSummary = _calculateTrainingSummary(shapeStats);
+    Map<String, dynamic> quantitySummary = _calculateTrainingSummary(quantityStats);
+
+    // Última atividade
+    DateTime? lastActivity;
+    final allStats = [...colorStats, ...shapeStats, ...quantityStats];
+    if (allStats.isNotEmpty) {
+      final dates = allStats.map((stat) => DateTime.parse(stat['date'])).toList();
+      dates.sort((a, b) => b.compareTo(a));
+      lastActivity = dates.first;
+    }
+
+    return {
+      'patientId': patientId,
+      'overallProgress': overallProgress,
+      'colorTraining': colorSummary,
+      'shapeTraining': shapeSummary,
+      'quantityTraining': quantitySummary,
+      'lastActivity': lastActivity?.toIso8601String(),
+      'totalSessions': colorStats.length + shapeStats.length + quantityStats.length,
+    };
+  }
+
+  // Calcular resumo de um tipo de treino
+  static Map<String, dynamic> _calculateTrainingSummary(List<Map<String, dynamic>> stats) {
+    if (stats.isEmpty) {
+      return {
+        'totalSessions': 0,
+        'totalSuccesses': 0,
+        'totalErrors': 0,
+        'totalAttempts': 0,
+        'averageSuccessRate': 0.0,
+        'lastSession': null,
+        'bestPerformance': 0.0,
+        'trend': 'stable', // stable, improving, declining
+      };
+    }
+
+    int totalSessions = stats.length;
+    int totalSuccesses = 0;
+    int totalErrors = 0;
+    int totalAttempts = 0;
+    double bestPerformance = 0.0;
+    
+    List<double> successRates = [];
+
+    for (var stat in stats) {
+      int successes = stat['successes'] as int;
+      int errors = stat['errors'] as int;
+      int attempts = stat['totalAttempts'] as int;
+      
+      totalSuccesses += successes;
+      totalErrors += errors;
+      totalAttempts += attempts;
+      
+      double successRate = attempts > 0 ? (successes / attempts) * 100 : 0.0;
+      successRates.add(successRate);
+      
+      if (successRate > bestPerformance) {
+        bestPerformance = successRate;
+      }
+    }
+
+    double averageSuccessRate = totalAttempts > 0 ? (totalSuccesses / totalAttempts) * 100 : 0.0;
+    
+    // Calcular tendência (baseado nas últimas 3 sessões vs 3 anteriores)
+    String trend = 'stable';
+    if (successRates.length >= 6) {
+      final recent = successRates.skip(successRates.length - 3).toList();
+      final previous = successRates.skip(successRates.length - 6).take(3).toList();
+      
+      double recentAvg = recent.reduce((a, b) => a + b) / recent.length;
+      double previousAvg = previous.reduce((a, b) => a + b) / previous.length;
+      
+      if (recentAvg > previousAvg + 5) {
+        trend = 'improving';
+      } else if (recentAvg < previousAvg - 5) {
+        trend = 'declining';
+      }
+    }
+
+    return {
+      'totalSessions': totalSessions,
+      'totalSuccesses': totalSuccesses,
+      'totalErrors': totalErrors,
+      'totalAttempts': totalAttempts,
+      'averageSuccessRate': averageSuccessRate,
+      'lastSession': stats.isNotEmpty ? stats.last['date'] : null,
+      'bestPerformance': bestPerformance,
+      'trend': trend,
+    };
+  }
+
+  // 🔄 MÉTODOS ORIGINAIS (MANTIDOS PARA COMPATIBILIDADE)
+
   // Salvar estatísticas de treinamento de cores
   static Future<bool> saveColorTrainingStats(TrainingStats stats) async {
     final prefs = await SharedPreferences.getInstance();

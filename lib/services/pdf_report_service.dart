@@ -12,62 +12,71 @@ class PdfReportService {
   static final DateFormat _dateFormat = DateFormat('dd/MM/yyyy');
   static final DateFormat _dateTimeFormat = DateFormat('dd/MM/yyyy HH:mm');
 
-  // Gerar relatório semanal em PDF
+  // 🆕 Gerar relatório semanal em PDF com dados específicos do paciente
   static Future<File> generateWeeklyReport({
     required Learner learner,
     required DateTime startDate,
     required DateTime endDate,
     required String therapistName,
   }) async {
-    // Carregar dados de progresso
-    final colorStats = await ProgressService.getColorTrainingStats();
-    final shapeStats = await ProgressService.getShapeTrainingStats();
-    final quantityStats = await ProgressService.getQuantityTrainingStats();
-
-    // Filtrar dados por período
-    final weekColorStats = _filterStatsByWeek(colorStats, startDate, endDate);
-    final weekShapeStats = _filterStatsByWeek(shapeStats, startDate, endDate);
-    final weekQuantityStats = _filterStatsByWeek(quantityStats, startDate, endDate);
-
-    // Calcular estatísticas da semana
-    final weeklyAnalysis = _calculateWeeklyAnalysis(
-      weekColorStats, 
-      weekShapeStats, 
-      weekQuantityStats
-    );
-
-    // Criar documento PDF
-    final pdf = pw.Document();
-
-    // Adicionar páginas ao PDF
-    pdf.addPage(_buildFirstPage(learner, startDate, endDate, therapistName, weeklyAnalysis));
-    
-    if (weekColorStats.isNotEmpty || weekShapeStats.isNotEmpty || weekQuantityStats.isNotEmpty) {
-      pdf.addPage(_buildDetailsPage(
-        learner,
-        weekColorStats,
-        weekShapeStats,
-        weekQuantityStats,
-        weeklyAnalysis,
-      ));
-    }
-
-    pdf.addPage(_buildConclusionPage(learner, weeklyAnalysis));
-
-    // Salvar PDF
-    final fileName = 'relatorio_${learner.name.replaceAll(' ', '_')}_${_dateFormat.format(DateTime.now()).replaceAll('/', '_')}.pdf';
-    final directory = await getApplicationDocumentsDirectory();
-    final file = File('${directory.path}/$fileName');
-    
     try {
-      await file.writeAsBytes(await pdf.save());
-      return file;
+      // 🆕 Carregar dados específicos do paciente
+      final colorStats = await ProgressService.getPatientColorTrainingStats(learner.id);
+      final shapeStats = await ProgressService.getPatientShapeTrainingStats(learner.id);
+      final quantityStats = await ProgressService.getPatientQuantityTrainingStats(learner.id);
+      final overallProgress = await ProgressService.getPatientOverallProgress(learner.id);
+
+      // Filtrar dados por período
+      final weekColorStats = _filterStatsByWeek(colorStats, startDate, endDate);
+      final weekShapeStats = _filterStatsByWeek(shapeStats, startDate, endDate);
+      final weekQuantityStats = _filterStatsByWeek(quantityStats, startDate, endDate);
+
+      // Calcular estatísticas da semana
+      final weeklyAnalysis = _calculateWeeklyAnalysis(
+        weekColorStats, 
+        weekShapeStats, 
+        weekQuantityStats
+      );
+
+      // 🆕 Adicionar dados de progresso geral ao relatório
+      weeklyAnalysis['overallProgress'] = overallProgress;
+
+      // Criar documento PDF
+      final pdf = pw.Document();
+
+      // Adicionar páginas ao PDF
+      pdf.addPage(_buildFirstPage(learner, startDate, endDate, therapistName, weeklyAnalysis));
+      
+      if (weekColorStats.isNotEmpty || weekShapeStats.isNotEmpty || weekQuantityStats.isNotEmpty) {
+        pdf.addPage(_buildDetailsPage(
+          learner,
+          weekColorStats,
+          weekShapeStats,
+          weekQuantityStats,
+          weeklyAnalysis,
+        ));
+      }
+
+      pdf.addPage(_buildConclusionPage(learner, weeklyAnalysis));
+
+      // Salvar PDF
+      final fileName = 'relatorio_${learner.name.replaceAll(' ', '_').replaceAll(RegExp(r'[^\w\s-]'), '')}_${_dateFormat.format(DateTime.now()).replaceAll('/', '_')}.pdf';
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/$fileName');
+      
+      try {
+        await file.writeAsBytes(await pdf.save());
+        return file;
+      } catch (e) {
+        // Fallback para diretório temporário
+        final tempDir = await getTemporaryDirectory();
+        final tempFile = File('${tempDir.path}/$fileName');
+        await tempFile.writeAsBytes(await pdf.save());
+        return tempFile;
+      }
     } catch (e) {
-      // Fallback para diretório temporário
-      final tempDir = await getTemporaryDirectory();
-      final tempFile = File('${tempDir.path}/$fileName');
-      await tempFile.writeAsBytes(await pdf.save());
-      return tempFile;
+      print('Erro ao gerar relatório PDF: $e');
+      rethrow;
     }
   }
 
@@ -96,6 +105,10 @@ class PdfReportService {
             
             // Período do relatório
             _buildPeriodSection(startDate, endDate),
+            pw.SizedBox(height: 30),
+            
+            // 🆕 Progresso geral do paciente
+            _buildOverallProgressSection(analysis),
             pw.SizedBox(height: 30),
             
             // Resumo geral
@@ -194,6 +207,10 @@ class PdfReportService {
             _buildRecommendations(analysis),
             pw.SizedBox(height: 30),
             
+            // 🆕 Seção de evolução do paciente
+            _buildEvolutionSection(learner, analysis),
+            pw.SizedBox(height: 30),
+            
             // Observações adicionais
             _buildAdditionalObservations(),
             
@@ -263,10 +280,14 @@ class PdfReportService {
           _buildInfoRow('Nome:', learner.name),
           _buildInfoRow('Data de Nascimento:', _dateFormat.format(learner.birthDate)),
           _buildInfoRow('Idade:', '${learner.age} anos'),
+          if (learner.email != null && learner.email!.isNotEmpty)
+            _buildInfoRow('Email:', learner.email!),
           if (learner.diagnosis != null && learner.diagnosis!.isNotEmpty)
             _buildInfoRow('Diagnóstico:', learner.diagnosis!),
           _buildInfoRow('Equipe Responsável:', therapistName),
           _buildInfoRow('Data do Relatório:', _dateFormat.format(DateTime.now())),
+          // 🆕 Tipo de paciente
+          _buildInfoRow('Tipo de Conta:', learner.isAuthenticated ? 'Paciente Gmail' : 'Paciente Local'),
         ],
       ),
     );
@@ -300,6 +321,100 @@ class PdfReportService {
     );
   }
 
+  // 🆕 Seção de progresso geral
+  static pw.Widget _buildOverallProgressSection(Map<String, dynamic> analysis) {
+    final overallProgress = analysis['overallProgress'] as Map<String, dynamic>? ?? {};
+    
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.all(20),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.purple50,
+        border: pw.Border.all(color: PdfColors.purple200),
+        borderRadius: pw.BorderRadius.circular(8),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            'PROGRESSO ACUMULADO DO PACIENTE',
+            style: pw.TextStyle(
+              fontSize: 16,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.purple700,
+            ),
+          ),
+          pw.SizedBox(height: 15),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              _buildProgressCard('Treinamentos\nCompletos', '${overallProgress['completedTrainings'] ?? 0}', PdfColors.blue),
+              _buildProgressCard('Estrelas\nConquistadas', '${overallProgress['totalStars'] ?? 0}', PdfColors.amber),
+              _buildProgressCard('Status Geral', _getOverallStatus(overallProgress), PdfColors.green),
+            ],
+          ),
+          pw.SizedBox(height: 15),
+          pw.Text(
+            'Status dos Treinos:',
+            style: pw.TextStyle(
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.SizedBox(height: 8),
+          _buildTrainingStatusRow('Cores', overallProgress['colorTrainingCompleted'] ?? false),
+          _buildTrainingStatusRow('Formas', overallProgress['shapeTrainingCompleted'] ?? false),
+          _buildTrainingStatusRow('Quantidades', overallProgress['quantityTrainingCompleted'] ?? false),
+        ],
+      ),
+    );
+  }
+
+  // 🆕 Helper para status geral
+  static String _getOverallStatus(Map<String, dynamic> progress) {
+    final completed = progress['completedTrainings'] as int? ?? 0;
+    if (completed >= 3) return 'Avançado';
+    if (completed >= 2) return 'Intermediário';
+    if (completed >= 1) return 'Iniciante';
+    return 'Novo';
+  }
+
+  // 🆕 Row de status de treino
+  static pw.Widget _buildTrainingStatusRow(String name, bool completed) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 2),
+      child: pw.Row(
+        children: [
+          pw.Container(
+            width: 12,
+            height: 12,
+            decoration: pw.BoxDecoration(
+              color: completed ? PdfColors.green : PdfColors.grey300,
+              shape: pw.BoxShape.circle,
+            ),
+            child: completed 
+                ? pw.Center(
+                    child: pw.Text(
+                      '✓',
+                      style: pw.TextStyle(
+                        color: PdfColors.white,
+                        fontSize: 8,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  )
+                : null,
+          ),
+          pw.SizedBox(width: 8),
+          pw.Text(
+            '$name: ${completed ? "Concluído" : "Em andamento"}',
+            style: pw.TextStyle(fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Seção de resumo
   static pw.Widget _buildSummarySection(Map<String, dynamic> analysis) {
     final totalSessions = analysis['totalSessions'] as int;
@@ -318,7 +433,7 @@ class PdfReportService {
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Text(
-            'RESUMO GERAL',
+            'RESUMO DO PERÍODO',
             style: pw.TextStyle(
               fontSize: 16,
               fontWeight: pw.FontWeight.bold,
@@ -364,6 +479,37 @@ class PdfReportService {
             title,
             textAlign: pw.TextAlign.center,
             style: pw.TextStyle(fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🆕 Card de progresso
+  static pw.Widget _buildProgressCard(String title, String value, PdfColor color) {
+    return pw.Container(
+      width: 120,
+      padding: const pw.EdgeInsets.all(12),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.white,
+        border: pw.Border.all(color: color),
+        borderRadius: pw.BorderRadius.circular(8),
+      ),
+      child: pw.Column(
+        children: [
+          pw.Text(
+            value,
+            style: pw.TextStyle(
+              fontSize: 20,
+              fontWeight: pw.FontWeight.bold,
+              color: color,
+            ),
+          ),
+          pw.SizedBox(height: 4),
+          pw.Text(
+            title,
+            textAlign: pw.TextAlign.center,
+            style: pw.TextStyle(fontSize: 9),
           ),
         ],
       ),
@@ -622,13 +768,83 @@ class PdfReportService {
           ),
           pw.SizedBox(height: 10),
           pw.Text(
-            'Nesta semana, o aprendiz ${learner.name} apresentou $performanceText, '
+            'Neste período, ${learner.name} apresentou $performanceText, '
             'realizando $totalSessions sessões com uma taxa média de acerto de '
             '${successRate.toStringAsFixed(1)}%. Baseando-se nos dados obtidos, '
             'observa-se desenvolvimento nas habilidades de discriminação, atenção '
             'e seguimento de instruções.',
             textAlign: pw.TextAlign.justify,
             style: const pw.TextStyle(fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🆕 Seção de evolução do paciente
+  static pw.Widget _buildEvolutionSection(Learner learner, Map<String, dynamic> analysis) {
+    final overallProgress = analysis['overallProgress'] as Map<String, dynamic>? ?? {};
+    final completedTrainings = overallProgress['completedTrainings'] as int? ?? 0;
+    final totalStars = overallProgress['totalStars'] as int? ?? 0;
+
+    String evolutionText;
+    if (completedTrainings >= 3) {
+      evolutionText = 'O paciente demonstra domínio avançado das habilidades básicas, '
+                     'estando pronto para desafios mais complexos e atividades '
+                     'de generalização.';
+    } else if (completedTrainings >= 2) {
+      evolutionText = 'O paciente está consolidando as habilidades adquiridas '
+                     'e mostra progresso consistente. Recomenda-se continuar '
+                     'com os treinos regulares.';
+    } else if (completedTrainings >= 1) {
+      evolutionText = 'O paciente está desenvolvendo as habilidades fundamentais. '
+                     'É importante manter a constância nos treinos para '
+                     'consolidar o aprendizado.';
+    } else {
+      evolutionText = 'O paciente está no início do processo de aprendizagem. '
+                     'Recomenda-se foco em atividades básicas e aumento '
+                     'gradual da complexidade.';
+    }
+
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.all(15),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.teal50,
+        borderRadius: pw.BorderRadius.circular(8),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            'EVOLUÇÃO DO PACIENTE',
+            style: pw.TextStyle(
+              fontSize: 14,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.teal700,
+            ),
+          ),
+          pw.SizedBox(height: 10),
+          pw.Text(
+            evolutionText,
+            textAlign: pw.TextAlign.justify,
+            style: const pw.TextStyle(fontSize: 12),
+          ),
+          pw.SizedBox(height: 10),
+          pw.Row(
+            children: [
+              pw.Text(
+                'Nível atual: ',
+                style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+              ),
+              pw.Text(_getOverallStatus(overallProgress)),
+              pw.SizedBox(width: 20),
+              pw.Text(
+                'Motivação: ',
+                style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+              ),
+              pw.Text('$totalStars estrelas conquistadas'),
+            ],
           ),
         ],
       ),
@@ -642,7 +858,7 @@ class PdfReportService {
     String recommendations;
     if (successRate >= 80) {
       recommendations = 'Recomendamos continuar com os treinos atuais e considerar aumentar '
-                       'gradualmente a dificuldade. O aprendiz demonstra estar pronto para '
+                       'gradualmente a dificuldade. O paciente demonstra estar pronto para '
                        'desafios mais complexos e aplicação das habilidades em diferentes contextos.';
     } else if (successRate >= 60) {
       recommendations = 'Recomendamos manter a frequência atual dos treinos e focar nos '
@@ -715,6 +931,7 @@ class PdfReportService {
               pw.Text('• Considerar a generalização das habilidades para ambiente natural'),
               pw.Text('• Manter registro contínuo do progresso para ajustes futuros'),
               pw.Text('• Envolver família/cuidadores no processo de aprendizagem'),
+              pw.Text('• Monitorar motivação e ajustar recompensas conforme necessário'),
             ].map((text) => pw.Padding(
               padding: const pw.EdgeInsets.symmetric(vertical: 2),
               child: text,
@@ -743,6 +960,11 @@ class PdfReportService {
           pw.Text(
             'Data de geração: ${_dateTimeFormat.format(DateTime.now())}',
             style: const pw.TextStyle(fontSize: 8),
+          ),
+          pw.SizedBox(height: 4),
+          pw.Text(
+            'Sistema de acompanhamento terapêutico digital',
+            style: pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
           ),
         ],
       ),
