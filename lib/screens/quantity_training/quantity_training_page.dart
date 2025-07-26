@@ -6,7 +6,7 @@ import '../../utils/message_helper.dart';
 import '../common_widgets/gradient_background.dart';
 import '../menu/menu_trainings_page.dart';
 import '../colors_training/congratulations_page.dart';
-import '../colors_training/dashboard_page.dart';
+import '../colors_training/dashboard_page.dart'; // 🆕 Importar o dashboard corrigido
 import 'widgets/number_button.dart';
 import 'widgets/quantity_display.dart';
 
@@ -125,7 +125,7 @@ class _QuantityTrainingPageState extends State<QuantityTrainingPage> {
     }
   }
   
-  // Função para mostrar o dashboard no final
+  // 🆕 Função corrigida para mostrar o dashboard no final
   void _showDashboard() {
     Navigator.pushReplacement(
       context,
@@ -134,6 +134,7 @@ class _QuantityTrainingPageState extends State<QuantityTrainingPage> {
           successes: successes,
           errors: errors,
           totalAttempts: totalAttempts,
+          trainingType: TrainingType.quantities, // 🆕 Especificar tipo de treino
           onTryAgain: () {
             // Reinicia o jogo
             Navigator.pushReplacement(

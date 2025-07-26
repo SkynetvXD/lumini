@@ -7,7 +7,7 @@ import '../../utils/message_helper.dart';
 import '../common_widgets/gradient_background.dart';
 import '../menu/menu_trainings_page.dart';
 import '../colors_training/congratulations_page.dart';
-import '../colors_training/dashboard_page.dart';
+import '../colors_training/dashboard_page.dart'; // 🆕 Importar o dashboard corrigido
 import 'widgets/shape_button.dart';
 import 'widgets/shape_display.dart';
 
@@ -156,7 +156,7 @@ class _ShapesTrainingPageState extends State<ShapesTrainingPage> {
     }
   }
   
-  // Função para mostrar o dashboard no final
+  // 🆕 Função corrigida para mostrar o dashboard no final
   void _showDashboard() {
     Navigator.pushReplacement(
       context,
@@ -165,6 +165,7 @@ class _ShapesTrainingPageState extends State<ShapesTrainingPage> {
           successes: successes,
           errors: errors,
           totalAttempts: totalAttempts,
+          trainingType: TrainingType.shapes, // 🆕 Especificar tipo de treino
           onTryAgain: () {
             // Reinicia o jogo
             Navigator.pushReplacement(

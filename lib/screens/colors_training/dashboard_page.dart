@@ -5,12 +5,19 @@ import '../../services/progress_service.dart';
 import '../../utils/message_helper.dart';
 import '../common_widgets/gradient_background.dart';
 
+enum TrainingType {
+  colors,
+  shapes,
+  quantities,
+}
+
 class DashboardPage extends StatefulWidget {
   final int successes;
   final int errors;
   final int totalAttempts;
   final VoidCallback onTryAgain;
   final VoidCallback onFinishAttempt;
+  final TrainingType trainingType; // 🆕 Parâmetro obrigatório
   
   const DashboardPage({
     super.key, 
@@ -19,6 +26,7 @@ class DashboardPage extends StatefulWidget {
     required this.totalAttempts,
     required this.onTryAgain,
     required this.onFinishAttempt,
+    required this.trainingType, // 🆕 Obrigatório
   });
   
    @override
@@ -53,34 +61,47 @@ class _DashboardPageState extends State<DashboardPage> {
       date: DateTime.now(),
     );
     
-    // Salvar estatísticas baseado no tipo de treinamento
-    if (Navigator.of(context).widget.toString().contains('ColorsTraining')) {
-      await ProgressService.saveColorTrainingStats(stats);
-    } else if (Navigator.of(context).widget.toString().contains('ShapesTraining')) {
-      await ProgressService.saveShapeTrainingStats(stats);
-    } else if (Navigator.of(context).widget.toString().contains('QuantityTraining')) {
-      await ProgressService.saveQuantityTrainingStats(stats);
-    } else {
-      await ProgressService.saveColorTrainingStats(stats);
+    // 🆕 Salvar estatísticas baseado no tipo de treinamento explícito
+    switch (widget.trainingType) {
+      case TrainingType.colors:
+        await ProgressService.saveColorTrainingStats(stats);
+        // Obter estatísticas médias anteriores para cores
+        final avgStats = await ProgressService.getAverageColorTrainingStats();
+        if (avgStats != null) {
+          _previousAverageSuccess = avgStats.successPercentage;
+        }
+        break;
+      case TrainingType.shapes:
+        await ProgressService.saveShapeTrainingStats(stats);
+        // Obter estatísticas médias anteriores para formas
+        final avgStats = await ProgressService.getLastShapeTrainingStats();
+        if (avgStats != null) {
+          _previousAverageSuccess = avgStats.successPercentage;
+        }
+        break;
+      case TrainingType.quantities:
+        await ProgressService.saveQuantityTrainingStats(stats);
+        // Obter estatísticas médias anteriores para quantidades
+        final avgStats = await ProgressService.getLastQuantityTrainingStats();
+        if (avgStats != null) {
+          _previousAverageSuccess = avgStats.successPercentage;
+        }
+        break;
     }
     
-    // Marcar treinamento como concluído se a taxa de sucesso for maior que 50%
+    // 🆕 Marcar treinamento como concluído se a taxa de sucesso for maior que 50%
     if (stats.successPercentage >= 50) {
-      if (Navigator.of(context).widget.toString().contains('ColorsTraining')) {
-        await ProgressService.markColorTrainingCompleted();
-      } else if (Navigator.of(context).widget.toString().contains('ShapesTraining')) {
-        await ProgressService.markShapeTrainingCompleted();
-      } else if (Navigator.of(context).widget.toString().contains('QuantityTraining')) {
-        await ProgressService.markQuantityTrainingCompleted();
-      } else {
-        await ProgressService.markColorTrainingCompleted();
+      switch (widget.trainingType) {
+        case TrainingType.colors:
+          await ProgressService.markColorTrainingCompleted();
+          break;
+        case TrainingType.shapes:
+          await ProgressService.markShapeTrainingCompleted();
+          break;
+        case TrainingType.quantities:
+          await ProgressService.markQuantityTrainingCompleted();
+          break;
       }
-    }
-    
-    // Obter estatísticas médias anteriores (antes desta sessão)
-    final avgStats = await ProgressService.getAverageColorTrainingStats();
-    if (avgStats != null) {
-      _previousAverageSuccess = avgStats.successPercentage;
     }
     
      // Obter progresso geral
@@ -94,12 +115,17 @@ class _DashboardPageState extends State<DashboardPage> {
         _isLoading = false;
       });
     }
-    
-    // Verificar se o widget ainda está montado antes de chamar setState
-    if (_mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+  }
+  
+  // 🆕 Obter título baseado no tipo de treino
+  String _getTrainingTitle() {
+    switch (widget.trainingType) {
+      case TrainingType.colors:
+        return "Treino de Cores";
+      case TrainingType.shapes:
+        return "Treino de Formas";
+      case TrainingType.quantities:
+        return "Treino de Quantidades";
     }
   }
   
@@ -114,7 +140,7 @@ class _DashboardPageState extends State<DashboardPage> {
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Resultado Final"),
+        title: Text("Resultado - ${_getTrainingTitle()}"), // 🆕 Título específico
         centerTitle: true,
         automaticallyImplyLeading: false,
       ),
@@ -128,18 +154,18 @@ class _DashboardPageState extends State<DashboardPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     // Título com ícone
-                    const Row(
+                    Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          Icons.star,
+                          _getTrainingIcon(), // 🆕 Ícone específico do treino
                           color: Colors.amber,
                           size: 40,
                         ),
-                        SizedBox(width: 10),
+                        const SizedBox(width: 10),
                         Text(
-                          "Fim do Treino!",
-                          style: TextStyle(
+                          "Fim do ${_getTrainingTitle()}!",
+                          style: const TextStyle(
                             fontSize: 28, 
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
@@ -155,7 +181,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(15),
                         decoration: BoxDecoration(
-                          color: Colors.white.withAlpha(50), // Substituído withOpacity por withAlpha
+                          color: Colors.white.withAlpha(50),
                           borderRadius: BorderRadius.circular(15),
                         ),
                         child: Column(
@@ -389,7 +415,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     Container(
                       padding: const EdgeInsets.all(15),
                       decoration: BoxDecoration(
-                        color: Colors.white.withAlpha(50), // Substituído withOpacity por withAlpha
+                        color: Colors.white.withAlpha(50),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
@@ -439,6 +465,18 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
       ),
     );
+  }
+  
+  // 🆕 Obter ícone específico do treino
+  IconData _getTrainingIcon() {
+    switch (widget.trainingType) {
+      case TrainingType.colors:
+        return Icons.palette;
+      case TrainingType.shapes:
+        return Icons.category;
+      case TrainingType.quantities:
+        return Icons.filter_9_plus;
+    }
   }
   
   Widget _buildEvolutionText(double difference) {

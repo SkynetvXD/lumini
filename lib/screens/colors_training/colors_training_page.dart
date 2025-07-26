@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
-import '../../constants/colors.dart';  // Importação corrigida
+import '../../constants/colors.dart';
 import '../../services/progress_service.dart';
 import '../../utils/message_helper.dart';
 import '../common_widgets/gradient_background.dart';
 import '../menu/menu_trainings_page.dart';
 import 'congratulations_page.dart';
-import 'dashboard_page.dart';
+import 'dashboard_page.dart'; // 🆕 Importar o dashboard corrigido
 import 'widgets/color_button.dart';
 import 'widgets/color_display.dart';
 
 class ColorsTrainingPage extends StatefulWidget {
-  const ColorsTrainingPage({super.key});  // Adicionado parâmetro Key
+  const ColorsTrainingPage({super.key});
 
   @override
-  State<ColorsTrainingPage> createState() => _ColorsTrainingPageState();  // Corrigido para State<ColorsTrainingPage>
+  State<ColorsTrainingPage> createState() => _ColorsTrainingPageState();
 }
 
 class _ColorsTrainingPageState extends State<ColorsTrainingPage> {
@@ -41,7 +41,7 @@ class _ColorsTrainingPageState extends State<ColorsTrainingPage> {
   int usedAttempts = 0;
   
   // Estado para mostrar mensagem de carregamento
-  final bool _isLoading = false;  // Mudado para final
+  final bool _isLoading = false;
   
   // Para mostrar mensagem de erro
   final GlobalKey buttonKey1 = GlobalKey();
@@ -117,7 +117,7 @@ class _ColorsTrainingPageState extends State<ColorsTrainingPage> {
     }
   }
   
-  // Função para mostrar o dashboard no final
+  // 🆕 Função corrigida para mostrar o dashboard no final
   void _showDashboard() {
     Navigator.pushReplacement(
       context,
@@ -126,6 +126,7 @@ class _ColorsTrainingPageState extends State<ColorsTrainingPage> {
           successes: successes,
           errors: errors,
           totalAttempts: totalAttempts,
+          trainingType: TrainingType.colors, // 🆕 Especificar tipo de treino
           onTryAgain: () {
             // Reinicia o jogo
             Navigator.pushReplacement(
