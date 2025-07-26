@@ -31,6 +31,8 @@ dependencies:
   
   # Para compartilhamento (já estava no pubspec)
   share_plus: ^7.2.1
+  cloud_firestore: ^4.17.5
+  connectivity_plus: ^6.1.4
 
 dev_dependencies:
   flutter_test:
