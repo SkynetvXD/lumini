@@ -117,71 +117,77 @@ class FirestoreService {
   // 👥 GESTÃO DE PACIENTES
 
   /// Adicionar paciente Gmail
-  static Future<String> addGmailPatient({
-    required String therapistId,
-    required String email,
-    required String name,
-    DateTime? birthDate,
-    String? diagnosis,
-  }) async {
-    try {
-      _log('Adicionando paciente Gmail: $email para terapeuta: $therapistId');
+  /// Adicionar paciente Gmail - VERSÃO SIMPLIFICADA (SEM VERIFICAÇÃO GLOBAL)
+static Future<String> addGmailPatient({
+  required String therapistId,
+  required String email,
+  required String name,
+  DateTime? birthDate,
+  String? diagnosis,
+}) async {
+  try {
+    _log('Adicionando paciente Gmail: $email para terapeuta: $therapistId');
 
-      // Verificar limite de pacientes
-      if (!await canAddPatient(therapistId)) {
-        throw Exception('Limite de $maxPatientsPerTherapist pacientes atingido');
-      }
-
-      // Verificar se email já existe
-      final existingPatient = await _db
-          .collectionGroup('patients')
-          .where('email', isEqualTo: email.toLowerCase())
-          .where('isActive', isEqualTo: true)
-          .get();
-      
-      if (existingPatient.docs.isNotEmpty) {
-        throw Exception('Email já cadastrado como paciente');
-      }
-
-      // Criar referência do paciente
-      final patientRef = _db
-          .collection('therapists')
-          .doc(therapistId)
-          .collection('patients')
-          .doc();
-
-      final patientData = {
-        'id': patientRef.id,
-        'email': email.toLowerCase(),
-        'name': name,
-        'birthDate': birthDate?.toIso8601String() ?? DateTime.now().toIso8601String(),
-        'diagnosis': diagnosis,
-        'therapistId': therapistId,
-        'isActive': true,
-        'isAuthenticated': true,
-        'createdAt': FieldValue.serverTimestamp(),
-        'lastAccess': FieldValue.serverTimestamp(),
-      };
-
-      // Usar transação para garantir atomicidade
-      await _db.runTransaction((transaction) async {
-        // Adicionar paciente
-        transaction.set(patientRef, patientData);
-        
-        // Incrementar contador de pacientes ativos
-        transaction.update(
-          _db.collection('therapists').doc(therapistId),
-          {'activePatients': FieldValue.increment(1)},
-        );
-      });
-
-      _log('Paciente Gmail adicionado com sucesso: ${patientRef.id}');
-      return patientRef.id;
-    } catch (e) {
-      _log('ERRO ao adicionar paciente Gmail: $e');
-      rethrow;
+    // Verificar limite de pacientes
+    if (!await canAddPatient(therapistId)) {
+      throw Exception('Limite de $maxPatientsPerTherapist pacientes atingido');
     }
+
+    // REMOVER VERIFICAÇÃO GLOBAL DE EMAIL DUPLICADO
+    // (era essa verificação que estava dando erro de permissão)
+    
+    // Verificar apenas nos pacientes DESTE terapeuta
+    final existingPatientLocal = await _db
+        .collection('therapists')
+        .doc(therapistId)
+        .collection('patients')
+        .where('email', isEqualTo: email.toLowerCase())
+        .where('isActive', isEqualTo: true)
+        .get();
+    
+    if (existingPatientLocal.docs.isNotEmpty) {
+      throw Exception('Este email já está cadastrado como seu paciente');
+    }
+
+    // Criar referência do paciente
+    final patientRef = _db
+        .collection('therapists')
+        .doc(therapistId)
+        .collection('patients')
+        .doc();
+
+    final patientData = {
+      'id': patientRef.id,
+      'email': email.toLowerCase(),
+      'name': name,
+      'birthDate': birthDate?.toIso8601String() ?? DateTime.now().toIso8601String(),
+      'diagnosis': diagnosis,
+      'therapistId': therapistId,
+      'isActive': true,
+      'isAuthenticated': true,
+      'createdAt': FieldValue.serverTimestamp(),
+      'lastAccess': FieldValue.serverTimestamp(),
+    };
+
+    // Usar transação para garantir atomicidade
+    await _db.runTransaction((transaction) async {
+      // Adicionar paciente
+      transaction.set(patientRef, patientData);
+      
+      // Incrementar contador de pacientes ativos
+      transaction.update(
+        _db.collection('therapists').doc(therapistId),
+        {'activePatients': FieldValue.increment(1)},
+      );
+    });
+
+    _log('Paciente Gmail adicionado com sucesso: ${patientRef.id}');
+    return patientRef.id;
+  } catch (e) {
+    _log('ERRO ao adicionar paciente Gmail: $e');
+    rethrow;
   }
+}
 
   /// Obter pacientes do terapeuta
   static Future<List<Learner>> getTherapistPatients(String therapistId) async {
