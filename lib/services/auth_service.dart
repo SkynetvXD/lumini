@@ -19,8 +19,8 @@ class AuthService {
   // ADICIONE AQUI OS EMAILS DOS TERAPEUTAS AUTORIZADOS
   static const List<String> _authorizedTherapistEmails = [
     'cogluna.contact@gmail.com',           // ← SEU EMAIL PRINCIPAL
-    'terapeuta@cogluna.com',               // ← EMAIL INSTITUCIONAL
-    'admin@cogluna.com',                   // ← EMAIL ADMIN
+    'bruna81adm@gmail.com',               // ← EMAIL INSTITUCIONAL
+    'leobraga.25@gmail.com',                   // ← EMAIL ADMIN
     
     // 📝 ADICIONE MAIS EMAILS AUTORIZADOS AQUI:
     // 'dr.fulano@gmail.com',
