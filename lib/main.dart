@@ -128,16 +128,7 @@ class LoadingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.blue.shade300,
-              Colors.blue.shade600,
-            ],
-          ),
-        ),
+        color: Color(0xFF2196F3),
         child: const Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -149,7 +140,7 @@ class LoadingScreen extends StatelessWidget {
                 color: Colors.white,
               ),
               SizedBox(height: 24),
-              
+
               // Nome do app
               Text(
                 'Lumimi',
@@ -160,7 +151,7 @@ class LoadingScreen extends StatelessWidget {
                 ),
               ),
               SizedBox(height: 16),
-              
+
               // Subtítulo
               Text(
                 'Aprendizado Inclusivo',
@@ -170,14 +161,14 @@ class LoadingScreen extends StatelessWidget {
                 ),
               ),
               SizedBox(height: 48),
-              
+
               // Loading indicator
               CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 strokeWidth: 3,
               ),
               SizedBox(height: 16),
-              
+
               Text(
                 'Inicializando...',
                 style: TextStyle(

@@ -73,31 +73,32 @@ class _ColorsTrainingPageState extends State<ColorsTrainingPage> {
   
   // Função para verificar se o usuário acertou a cor
   void _checkChoice(Color chosenColor, GlobalKey buttonKey) {
-    if (chosenColor == currentTargetColor) {
-      // Acertou
-      setState(() {
-        successes++;
-        usedAttempts++;
-      });
-      
-      // Navega para a página de parabéns
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CongratulationsPage(
-            onContinue: () {
-              // Quando o usuário continuar, muda a cor e volta para o jogo
-              _selectRandomColorSet();
-              
-              // Verifica se acabaram as tentativas
-              if (usedAttempts >= totalAttempts) {
-                _showDashboard();
-              }
-            },
-          ),
+  if (chosenColor == currentTargetColor) {
+    // Acertou
+    setState(() {
+      successes++;
+      usedAttempts++;
+    });
+    
+    // 🆕 Navega para a página de parabéns com tipo específico
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CongratulationsPage(
+          trainingType: TrainingType.colors, // 🆕 Especifica tipo de treino
+          onContinue: () {
+            // Quando o usuário continuar, muda a cor e volta para o jogo
+            _selectRandomColorSet();
+            
+            // Verifica se acabaram as tentativas
+            if (usedAttempts >= totalAttempts) {
+              _showDashboard();
+            }
+          },
         ),
-      );
-    } else {
+      ),
+    );
+  } else {
       // Errou
       setState(() {
         errors++;

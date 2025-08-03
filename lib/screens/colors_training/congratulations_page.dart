@@ -1,12 +1,55 @@
+// lib/screens/colors_training/congratulations_page.dart
 import 'package:flutter/material.dart';
 import 'dart:math';
 import '../../constants/colors.dart';
 import '../common_widgets/gradient_background.dart';
+import '../colors_training/dashboard_page.dart'; // Para acessar o TrainingType
 
 class CongratulationsPage extends StatelessWidget {
   final VoidCallback onContinue;
+  final TrainingType trainingType; // 🆕 Novo parâmetro obrigatório
   
-  const CongratulationsPage({super.key, required this.onContinue});
+  const CongratulationsPage({
+    super.key, 
+    required this.onContinue,
+    required this.trainingType, // 🆕 Obrigatório
+  });
+  
+  // 🆕 Método para obter mensagem baseada no tipo de treino
+  String _getSuccessMessage() {
+    switch (trainingType) {
+      case TrainingType.colors:
+        return "Você acertou a cor! Vamos continuar jogando?";
+      case TrainingType.shapes:
+        return "Você acertou a forma! Vamos continuar jogando?";
+      case TrainingType.quantities:
+        return "Você acertou a quantidade! Vamos continuar jogando?";
+    }
+  }
+  
+  // 🆕 Método para obter texto do botão baseado no tipo de treino
+  String _getButtonText() {
+    switch (trainingType) {
+      case TrainingType.colors:
+        return "Próxima Cor";
+      case TrainingType.shapes:
+        return "Próxima Forma";
+      case TrainingType.quantities:
+        return "Próxima Quantidade";
+    }
+  }
+  
+  // 🆕 Método para obter ícone baseado no tipo de treino
+  IconData _getButtonIcon() {
+    switch (trainingType) {
+      case TrainingType.colors:
+        return Icons.palette;
+      case TrainingType.shapes:
+        return Icons.category;
+      case TrainingType.quantities:
+        return Icons.filter_9_plus;
+    }
+  }
   
   @override
   Widget build(BuildContext context) {
@@ -66,7 +109,7 @@ class CongratulationsPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(15),
                   ),
                   child: Text(
-                    "Você acertou a cor! Vamos continuar jogando?",
+                    _getSuccessMessage(), // 🆕 Mensagem dinâmica
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 20,
@@ -91,8 +134,10 @@ class CongratulationsPage extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      Icon(_getButtonIcon()), // 🆕 Ícone dinâmico
+                      SizedBox(width: 10),
                       Text(
-                        "Próxima Cor",
+                        _getButtonText(), // 🆕 Texto do botão dinâmico
                         style: TextStyle(fontSize: 18),
                       ),
                       SizedBox(width: 10),

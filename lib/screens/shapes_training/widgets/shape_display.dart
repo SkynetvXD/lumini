@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 import 'shape_painter.dart';
 
 class ShapeDisplay extends StatelessWidget {
@@ -13,9 +14,17 @@ class ShapeDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 🆕 Obter dimensões da tela para responsividade
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // 🆕 Calcular tamanhos baseados na tela
+    final containerSize = math.min(screenWidth * 0.4, screenHeight * 0.2).clamp(120.0, 180.0);
+    final paintSize = containerSize * 0.8;
+    
     return Container(
-      width: 150,
-      height: 150,
+      width: containerSize,
+      height: containerSize,
       decoration: BoxDecoration(
         color: Colors.white,
         shape: BoxShape.circle,
@@ -23,13 +32,13 @@ class ShapeDisplay extends StatelessWidget {
           BoxShadow(
             color: Colors.black26,
             blurRadius: 10,
-            offset: Offset(0, 5),
+            offset: const Offset(0, 5),
           ),
         ],
       ),
       child: Center(
         child: CustomPaint(
-          size: Size(120, 120),
+          size: Size(paintSize, paintSize),
           painter: ShapePainter(
             shapeType: currentShape,
             color: color,

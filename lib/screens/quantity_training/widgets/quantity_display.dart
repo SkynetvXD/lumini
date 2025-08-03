@@ -11,9 +11,17 @@ class QuantityDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 🆕 Obter dimensões da tela para responsividade
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // 🆕 Calcular tamanhos baseados na tela
+    final containerWidth = min(screenWidth * 0.8, 300.0);
+    final containerHeight = min(screenHeight * 0.2, 150.0);
+    
     return Container(
-      width: 300,
-      height: 150,
+      width: containerWidth,
+      height: containerHeight,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -26,13 +34,12 @@ class QuantityDisplay extends StatelessWidget {
           ),
         ],
       ),
-      child: _buildItemsDisplay(quantity),
+      child: _buildItemsDisplay(quantity, containerWidth, containerHeight),
     );
   }
   
-  // Função para construir a exibição dos itens
-  Widget _buildItemsDisplay(int quantity) {
-    // Gerar cores e formas aleatórias para tornar o visual mais interessante
+  // 🆕 Função atualizada com parâmetros de tamanho
+  Widget _buildItemsDisplay(int quantity, double width, double height) {
     final random = Random();
     
     // Uma lista de possíveis ícones para usar
@@ -61,17 +68,20 @@ class QuantityDisplay extends StatelessWidget {
     ];
     final selectedColor = colors[random.nextInt(colors.length)];
     
+    // 🆕 Calcular tamanho do ícone baseado no container
+    final iconSize = min(width / 10, height / 5).clamp(25.0, 45.0);
+    
     // Organizar os ícones em linhas e colunas (máximo 5 por linha)
     return Wrap(
       alignment: WrapAlignment.center,
-      spacing: 15,
-      runSpacing: 15,
+      spacing: 10,
+      runSpacing: 10,
       children: List.generate(
         quantity,
         (index) => Icon(
           selectedIcon,
           color: selectedColor,
-          size: 35,
+          size: iconSize,
         ),
       ),
     );

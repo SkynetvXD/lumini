@@ -18,14 +18,18 @@ class AuthService {
   // 🔒 LISTA DE EMAILS AUTORIZADOS PARA TERAPEUTAS
   // ADICIONE AQUI OS EMAILS DOS TERAPEUTAS AUTORIZADOS
   static const List<String> _authorizedTherapistEmails = [
-    'cogluna.contact@gmail.com',           // ← SEU EMAIL PRINCIPAL
-    'bruna81adm@gmail.com',               // ← EMAIL INSTITUCIONAL
-    'leobraga.25@gmail.com',                   // ← EMAIL ADMIN
-    
-    // 📝 ADICIONE MAIS EMAILS AUTORIZADOS AQUI:
-    // 'dr.fulano@gmail.com',
-    // 'dra.cicrana@hotmail.com',
-    // 'terapeuta.exemplo@clinica.com.br',
+    'cogluna.contact@gmail.com',
+    'riq.costa@gmail.com',           
+    'bruna81adm@gmail.com',               
+    'leobraga.25@gmail.com', 
+    'danigouveia.psi@gmail.com',
+    'guilhermev.lodi@gmail.com',
+    'guuih_almeida@hotmail.com',
+    'psico.vanessagomes@gmail.com',
+    'daiaane.zvd@gmail.com',
+    'psicologia.izabelle@gmail.com',
+    'camilabatistaferreira91@gmail.com'
+
   ];
 
   // 🔒 DOMÍNIOS INSTITUCIONAIS AUTORIZADOS (OPCIONAL)

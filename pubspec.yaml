@@ -1,7 +1,7 @@
 name: lumimi_app
 description: App de aprendizado para crianças com necessidades especiais.
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+9
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -19,6 +19,10 @@ dependencies:
   firebase_core: ^2.25.4
   firebase_auth: ^4.16.0
   google_sign_in: ^6.2.6
+
+  cloud_firestore: ^4.15.8
+  firebase_storage: ^11.6.9
+  connectivity_plus: ^6.1.4
   
   # Dependências para relatórios PDF (SEM PRINTING)
   pdf: ^3.11.3
@@ -31,8 +35,6 @@ dependencies:
   
   # Para compartilhamento (já estava no pubspec)
   share_plus: ^7.2.1
-  cloud_firestore: ^4.17.5
-  connectivity_plus: ^6.1.4
 
 dev_dependencies:
   flutter_test:

@@ -112,30 +112,31 @@ class _ShapesTrainingPageState extends State<ShapesTrainingPage> {
   
   // Função para verificar se o usuário acertou a forma
   void _checkChoice(int chosenShape, GlobalKey buttonKey) {
-    if (chosenShape == currentTargetShape) {
-      // Acertou
-      setState(() {
-        successes++;
-        usedAttempts++;
-      });
-      
-      // Navega para a página de parabéns
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CongratulationsPage(
-            onContinue: () {
-              // Quando o usuário continuar, muda a forma e volta para o jogo
-              _selectRandomShapeSet();
-              
-              // Verifica se acabaram as tentativas
-              if (usedAttempts >= totalAttempts) {
-                _showDashboard();
-              }
-            },
-          ),
+  if (chosenShape == currentTargetShape) {
+    // Acertou
+    setState(() {
+      successes++;
+      usedAttempts++;
+    });
+    
+    // 🆕 Navega para a página de parabéns com tipo específico
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CongratulationsPage(
+          trainingType: TrainingType.shapes, // 🆕 Especifica tipo de treino
+          onContinue: () {
+            // Quando o usuário continuar, muda a forma e volta para o jogo
+            _selectRandomShapeSet();
+            
+            // Verifica se acabaram as tentativas
+            if (usedAttempts >= totalAttempts) {
+              _showDashboard();
+            }
+          },
         ),
-      );
+      ),
+    );
     } else {
       // Errou
       setState(() {
