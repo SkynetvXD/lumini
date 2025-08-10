@@ -11,6 +11,8 @@ import '../../utils/pdf_helper.dart';
 import '../common_widgets/gradient_background.dart';
 import '../therapist/add_patient_by_email_dialog.dart';
 import 'home_screen.dart';
+import '../../services/unified_auth_service.dart';
+
 
 class TherapistScreen extends StatefulWidget {
   const TherapistScreen({super.key});
@@ -29,6 +31,7 @@ class _TherapistScreenState extends State<TherapistScreen> with WidgetsBindingOb
   // Dados do terapeuta logado
   Map<String, dynamic>? _therapistData;
   String _therapistName = 'Dr(a). Nome do Terapeuta';
+  String _therapistEmail = '';
 
   // 🆕 Cache para dados de progresso dos pacientes
   final Map<String, Map<String, dynamic>> _patientProgressCache = {};
@@ -134,40 +137,63 @@ class _TherapistScreenState extends State<TherapistScreen> with WidgetsBindingOb
   }
 
   // Carregar dados do terapeuta logado
-  Future<void> _loadTherapistData() async {
-    try {
-      final therapistData = await AuthService.getTherapistData();
-      final isLoggedIn = await AuthService.isTherapistLoggedIn();
-      
-      if (!isLoggedIn || therapistData == null) {
-        print('❌ Terapeuta não logado ou dados inválidos');
-        if (mounted) {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-            (route) => false,
-          );
-        }
-        return;
-      }
-      
-      print('✅ Dados do terapeuta carregados: ${therapistData['name']}');
-      
-      // Atualizar dados do terapeuta (sem setState ainda)
-      _therapistData = therapistData;
-      _therapistName = therapistData['name'] ?? 'Terapeuta';
-      _therapistNameController.text = _therapistName;
-      
-    } catch (e) {
-      print('❌ Erro ao carregar dados do terapeuta: $e');
+  // Substitua a função _loadTherapistData() em lib/screens/home/therapist_screen.dart
+
+// Carregar dados do terapeuta logado (VERSÃO CORRIGIDA)
+Future<void> _loadTherapistData() async {
+  try {
+    // ✅ USAR UNIFIED SERVICE para verificar ambos os métodos (Google + Nativo)
+    final therapistData = await UnifiedAuthService.getTherapistData();
+    final isLoggedIn = await UnifiedAuthService.isTherapistLoggedIn();
+    
+    if (!isLoggedIn || therapistData == null) {
+      print('❌ Terapeuta não logado ou dados inválidos');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Erro ao carregar dados do terapeuta'),
-            backgroundColor: Colors.red,
-          ),
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
         );
       }
+      return;
     }
+    
+    print('✅ Dados do terapeuta carregados: ${therapistData['name']} (método: ${therapistData['authMethod'] ?? 'google'})');
+    
+    // Atualizar dados do terapeuta
+    _therapistData = therapistData;
+    _therapistName = therapistData['name'] ?? 'Terapeuta';
+    _therapistEmail = therapistData['email'] ?? '';
+    _therapistNameController.text = _therapistName;
+    
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+    
+    print('✅ TherapistScreen inicializada com sucesso');
+    
+  } catch (e) {
+    print('❌ Erro ao carregar dados do terapeuta: $e');
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+      
+      // Mostrar erro e voltar para home
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Erro ao carregar dados. Tente fazer login novamente.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+        (route) => false,
+      );
+    }
+  }
   }
 
   // 🆕 Carregar pacientes Gmail COM dados de progresso

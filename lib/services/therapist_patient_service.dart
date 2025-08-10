@@ -7,6 +7,7 @@ import '../models/learner.dart';
 import 'firestore_service.dart';
 import 'sync_service.dart';
 import 'auth_service.dart';
+import 'native_auth_service.dart';
 
 class TherapistPatientService {
   static const String _patientsKey = 'therapist_patients';
@@ -37,46 +38,93 @@ class TherapistPatientService {
 
   /// Obter ID do terapeuta atual
   static Future<String?> _getCurrentTherapistId() async {
-    try {
-      final therapistData = await AuthService.getTherapistData();
-      return therapistData?['uid'];
-    } catch (e) {
-      _log('ERRO ao obter therapistId: $e');
-      return null;
+  try {
+    // 1. Tentar dados nativos primeiro
+    final nativeData = await NativeAuthService.getTherapistDataNative();
+    if (nativeData != null) {
+      _log('TherapistId obtido via dados nativos: ${nativeData['uid']}');
+      return nativeData['uid'];
     }
+    
+    // 2. Fallback para dados Google
+    final googleData = await AuthService.getTherapistData();
+    if (googleData != null) {
+      _log('TherapistId obtido via dados Google: ${googleData['uid']}');
+      return googleData['uid'];
+    }
+    
+    _log('ERRO: Nenhum therapistId encontrado');
+    return null;
+  } catch (e) {
+    _log('ERRO ao obter therapistId: $e');
+    return null;
   }
+}
 
   // 👥 GESTÃO DE PACIENTES (HÍBRIDO)
 
   /// Obter todos os pacientes Gmail de um terapeuta
-  static Future<List<Learner>> getPatientsByTherapist(String therapistId) async {
-    _log('Obtendo pacientes para terapeuta: $therapistId');
+static Future<List<Learner>> getPatientsByTherapist(String therapistId) async {
+  _log('Obtendo pacientes para terapeuta: $therapistId');
 
-    // 1. Tentar obter do Firestore primeiro
-    if (await _shouldUseFirestore()) {
-      try {
-        final firestorePatients = await FirestoreService.getTherapistPatients(therapistId);
-        if (firestorePatients.isNotEmpty) {
-          _log('${firestorePatients.length} pacientes obtidos do Firestore');
-          // Salvar como backup local
-          await _saveLocalBackup(therapistId, firestorePatients);
-          return firestorePatients;
-        }
-      } catch (e) {
-        _log('ERRO no Firestore, tentando dados locais: $e');
-      }
-    }
+  List<Learner> allPatients = [];
 
-    // 2. Fallback para dados locais
+  // 1. Tentar obter do Firestore primeiro
+  if (await _shouldUseFirestore()) {
     try {
-      final localPatients = await _getLocalPatients(therapistId);
-      _log('${localPatients.length} pacientes obtidos localmente');
-      return localPatients;
+      final firestorePatients = await FirestoreService.getTherapistPatients(therapistId);
+      allPatients.addAll(firestorePatients);
+      _log('${firestorePatients.length} pacientes do Firestore encontrados');
     } catch (e) {
-      _log('ERRO ao obter pacientes locais: $e');
-      return [];
+      _log('ERRO ao obter pacientes do Firestore: $e');
     }
   }
+
+  // 2. Obter pacientes locais
+  try {
+    final localPatients = await _getLocalPatients(therapistId);
+    for (final localPatient in localPatients) {
+      // Verificar duplicatas por email
+      bool isDuplicate = allPatients.any((existing) =>
+          existing.email?.toLowerCase() == localPatient.email?.toLowerCase());
+      if (!isDuplicate) {
+        allPatients.add(localPatient);
+        _log('Paciente local adicionado: ${localPatient.name}');
+      } else {
+        _log('Paciente local já existe: ${localPatient.name}');
+      }
+    }
+  } catch (e) {
+    _log('ERRO ao obter pacientes locais: $e');
+  }
+
+  // 3. 🆕 INCLUIR PACIENTES NATIVOS
+  try {
+    final nativePatientsData = NativeAuthService.getNativePatientsForTherapist(therapistId);
+    _log('${nativePatientsData.length} pacientes nativos encontrados');
+
+    for (final nativePatientData in nativePatientsData) {
+      // Converter dados nativos para Learner
+      final nativePatient = Learner.fromMap(nativePatientData);
+
+      // Verificar duplicatas por email
+      bool isDuplicate = allPatients.any((existing) =>
+          existing.email?.toLowerCase() == nativePatient.email?.toLowerCase());
+
+      if (!isDuplicate) {
+        allPatients.add(nativePatient);
+        _log('Paciente nativo adicionado: ${nativePatient.name}');
+      } else {
+        _log('Paciente nativo já existe: ${nativePatient.name}');
+      }
+    }
+  } catch (e) {
+    _log('ERRO ao obter pacientes nativos: $e');
+  }
+
+  _log('TOTAL: ${allPatients.length} pacientes (Firestore + Local + Nativos)');
+  return allPatients;
+}
 
   /// Adicionar um novo paciente Gmail
   static Future<bool> addPatient(Learner patient) async {

@@ -2,10 +2,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_options.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/menu/menu_trainings_page.dart';
 import 'services/patient_auth_service.dart';
 import 'services/auth_service.dart';
+import 'services/unified_auth_service.dart';
 import 'services/sync_service.dart';
 
 void main() async {
@@ -13,20 +15,71 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   try {
-    // Inicializar Firebase
-    await Firebase.initializeApp();
+    // ✅ INICIALIZAR FIREBASE COM OPÇÕES CORRETAS
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform, // ← IMPORTANTE!
+    );
     print('🔥 Firebase inicializado com sucesso');
+    
+    // Verificar se Firebase está realmente funcionando
+    final FirebaseAuth auth = FirebaseAuth.instance;
+    print('🔐 Firebase Auth inicializado: ${auth.app.name}');
     
     // Inicializar serviços
     await SyncService.initialize();
     print('🔄 SyncService inicializado');
     
   } catch (e) {
-    print('❌ ERRO na inicialização do Firebase: $e');
-    // App pode continuar em modo local se Firebase falhar
+    print('❌ ERRO CRÍTICO na inicialização do Firebase: $e');
+    // Em caso de erro crítico, mostrar tela de erro
+    runApp(ErrorApp(error: e.toString()));
+    return;
   }
   
   runApp(const LumimiApp());
+}
+
+/// App de erro para quando Firebase falha completamente
+class ErrorApp extends StatelessWidget {
+  final String error;
+  const ErrorApp({super.key, required this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error, color: Colors.red, size: 64),
+                const SizedBox(height: 16),
+                const Text(
+                  'Erro de Inicialização',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'O app não pôde ser inicializado corretamente.\n\nErro: $error',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () {
+                    // Restart the app
+                    main();
+                  },
+                  child: const Text('Tentar Novamente'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class LumimiApp extends StatelessWidget {
@@ -62,44 +115,51 @@ class _AuthStateWrapperState extends State<AuthStateWrapper> {
   @override
   void initState() {
     super.initState();
-    _checkInitialAuthState();
+    _checkInitialAuth();
   }
 
-  Future<void> _checkInitialAuthState() async {
+  /// Verificar estado de autenticação inicial
+  Future<void> _checkInitialAuth() async {
     try {
-      // Verificar se há um paciente logado
-      final isPatientLoggedIn = await PatientAuthService.isPatientLoggedIn();
-      if (isPatientLoggedIn) {
-        print('👨‍⚕️ Paciente já logado, redirecionando para menu');
+      // ✅ VERIFICAR SE FIREBASE ESTÁ INICIALIZADO
+      if (Firebase.apps.isEmpty) {
+        print('❌ Firebase não está inicializado');
         setState(() {
-          _initialScreen = const MenuTrainingsPage();
+          _initialScreen = const HomeScreen();
           _isLoading = false;
         });
         return;
       }
 
-      // Verificar se há um terapeuta logado
-      final isTherapistLoggedIn = await AuthService.isTherapistLoggedIn();
+      print('🔍 Verificando autenticação inicial...');
+      
+      // Verificar se algum usuário está logado (usando UnifiedAuthService)
+      final isTherapistLoggedIn = await UnifiedAuthService.isTherapistLoggedIn();
+      final isPatientLoggedIn = await UnifiedAuthService.isPatientLoggedIn();
+      
       if (isTherapistLoggedIn) {
-        print('👩‍⚕️ Terapeuta já logado, redirecionando para tela do terapeuta');
-        // Importar e usar TherapistScreen se existir
-        // setState(() {
-        //   _initialScreen = const TherapistScreen();
-        //   _isLoading = false;
-        // });
-        // return;
+        print('✅ Terapeuta logado - redirecionando para TherapistScreen');
+        // Importar e usar TherapistScreen
+        setState(() {
+          _initialScreen = const HomeScreen(); // Ou TherapistScreen
+          _isLoading = false;
+        });
+      } else if (isPatientLoggedIn) {
+        print('✅ Paciente logado - redirecionando para MenuTrainingsPage');
+        setState(() {
+          _initialScreen = const MenuTrainingsPage();
+          _isLoading = false;
+        });
+      } else {
+        print('ℹ️ Nenhum usuário logado - mostrando HomeScreen');
+        setState(() {
+          _initialScreen = const HomeScreen();
+          _isLoading = false;
+        });
       }
-
-      // Se ninguém está logado, ir para home
-      print('🏠 Nenhum usuário logado, indo para HomeScreen');
-      setState(() {
-        _initialScreen = const HomeScreen();
-        _isLoading = false;
-      });
-
+      
     } catch (e) {
-      print('❌ ERRO ao verificar estado de autenticação: $e');
-      // Em caso de erro, ir para home
+      print('❌ Erro na verificação de autenticação: $e');
       setState(() {
         _initialScreen = const HomeScreen();
         _isLoading = false;
@@ -110,76 +170,23 @@ class _AuthStateWrapperState extends State<AuthStateWrapper> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const MaterialApp(
-        home: LoadingScreen(),
-        debugShowCheckedModeBanner: false,
-      );
-    }
-
-    return _initialScreen;
-  }
-}
-
-/// Tela de loading inicial
-class LoadingScreen extends StatelessWidget {
-  const LoadingScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        color: Color(0xFF2196F3),
-        child: const Center(
+      return const Scaffold(
+        body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Logo ou ícone do app
-              Icon(
-                Icons.school,
-                size: 80,
-                color: Colors.white,
-              ),
-              SizedBox(height: 24),
-
-              // Nome do app
-              Text(
-                'Lumimi',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
+              CircularProgressIndicator(),
               SizedBox(height: 16),
-
-              // Subtítulo
               Text(
-                'Aprendizado Inclusivo',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.white70,
-                ),
-              ),
-              SizedBox(height: 48),
-
-              // Loading indicator
-              CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                strokeWidth: 3,
-              ),
-              SizedBox(height: 16),
-
-              Text(
-                'Inicializando...',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.white70,
-                ),
+                'Inicializando Lumimi...',
+                style: TextStyle(fontSize: 16),
               ),
             ],
           ),
         ),
-      ),
-    );
+      );
+    }
+    
+    return _initialScreen;
   }
 }

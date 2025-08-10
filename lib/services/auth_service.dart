@@ -28,7 +28,8 @@ class AuthService {
     'psico.vanessagomes@gmail.com',
     'daiaane.zvd@gmail.com',
     'psicologia.izabelle@gmail.com',
-    'camilabatistaferreira91@gmail.com'
+    'camilabatistaferreira91@gmail.com',
+    'beatrizzpaivaa@gmail.com',
 
   ];
 
